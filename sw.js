@@ -1,4 +1,4 @@
-const CACHE='solent-course-predictor-1778498009';
+const CACHE='solent-course-predictor-phone-gps';
 const ASSETS=[
   './',
   './index.html',

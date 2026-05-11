@@ -63,19 +63,20 @@
       <label>True wind speed kn <input type="number" id="tws" value="10" min="0" step="0.1" /></label>
       <label>Current set °T (TO) <input type="number" id="set" value="270" min="0" max="359" step="1" /></label>
       <label>Current drift kn <input type="number" id="drift" value="2" min="0" step="0.1" /></label>
-      <label>Use polar <select id="usePolar"><option>Yes</option><option selected>No</option></select></label>
+      <label>Use polar <select id="usePolar"><option selected>Yes</option><option>No</option></select></label>
       <label>Mag variation ° <input type="number" id="magVar" value="0" step="0.1" /></label>
     </div>
-    <h3>Manual targets</h3>
-    <div class="grid three">
-      <label>Upwind TWA <input type="number" id="upTwa" value="39" /></label>
-      <label>Upwind BSP <input type="number" id="upBsp" value="6.76" step="0.01" /></label>
-      <label>Reach TWA <input type="number" id="reachTwa" value="90" min="0" max="180" step="1" /></label>
-      <label>Reach BSP <input type="number" id="reachBsp" value="8.47" step="0.01" /></label>
-      <label>Downwind TWA <input type="number" id="dnTwa" value="148" /></label>
-      <label>Downwind BSP <input type="number" id="dnBsp" value="6.4" step="0.01" /></label>
-      <label>Polar factor <input type="number" id="polarFactor" value="1" step="0.01" /></label>
-    </div>
+    <details id="manualTargets" class="manual-targets">
+      <summary>Manual targets</summary>
+      <div class="grid three manual-target-grid">
+        <label>Upwind TWA <input type="number" id="upTwa" value="39" /></label>
+        <label>Reaching TWA <input type="number" id="reachTwa" value="90" min="0" max="180" step="1" /></label>
+        <label>Downwind TWA <input type="number" id="dnTwa" value="148" /></label>
+        <label>Upwind BSP <input type="number" id="upBsp" value="6.76" step="0.01" /></label>
+        <label>Reaching BSP <input type="number" id="reachBsp" value="8.47" step="0.01" /></label>
+        <label>Downwind BSP <input type="number" id="dnBsp" value="6.4" step="0.01" /></label>
+      </div>
+    </details>
     <div class="setup-actions">
       <button id="continueToCourse" type="button">Continue to course</button>
     </div>
@@ -121,6 +122,21 @@
   </section>
 
   <section id="map" class="map wide course-page"></section>
+  <section id="phoneGpsControls" class="panel wide course-page phone-gps-controls">
+    <div class="section-head compact">
+      <div>
+        <h2>Phone GPS</h2>
+        <p id="phoneGpsStatus">GPS not running. Requires HTTPS and location permission.</p>
+      </div>
+    </div>
+    <div class="phone-gps-row">
+      <button id="startPhoneGps" type="button">Show phone position</button>
+      <button id="centrePhoneGps" type="button" class="secondary">Centre on phone</button>
+      <button id="usePhoneAsStart" type="button" class="secondary">Use as Start</button>
+      <button id="stopPhoneGps" type="button" class="secondary">Stop GPS</button>
+    </div>
+  </section>
+
   <section id="currentOverlayControls" class="panel wide course-page current-overlay-controls">
     <div class="section-head compact">
       <div>
@@ -238,9 +254,14 @@
         <h2>3 · Loaded polar</h2>
         <p id="polarMeta">No polar loaded</p>
       </div>
-      <div class="tab-buttons">
-        <button id="polarDiagramTab" class="secondary active-tab" type="button">Diagram</button>
-        <button id="polarTableTab" class="secondary" type="button">Table</button>
+      <div class="polar-controls">
+        <label>Polar Factor %
+          <input type="number" id="polarFactorPct" value="100" min="50" max="150" step="1" />
+        </label>
+        <div class="tab-buttons">
+          <button id="polarDiagramTab" class="secondary active-tab" type="button">Diagram</button>
+          <button id="polarTableTab" class="secondary" type="button">Table</button>
+        </div>
       </div>
     </div>
     <div id="polarDiagramPanel" class="polar-tab-panel">

@@ -98,28 +98,6 @@ body.show-setup .map-action-btn{display:none}
 #tideFactor{font-weight:700}
 
 
-/* Setup layout tidy: Inputs and Tides same visual size on larger screens */
-@media (min-width: 900px){
-  body.show-setup main{
-    display:grid;
-    grid-template-columns:minmax(0, 1fr) minmax(0, 1fr);
-    align-items:stretch;
-    gap:16px;
-  }
-  body.show-setup .panel.controls.setup-page,
-  body.show-setup .tide-panel.setup-page{
-    min-height:620px;
-    height:100%;
-  }
-  body.show-setup .polar-panel.setup-page{
-    grid-column:1 / -1;
-  }
-}
-@media (max-width: 899px){
-  body.show-setup .panel.controls.setup-page,
-  body.show-setup .tide-panel.setup-page{
-    min-height:auto;
-  }
 }
 .tide-panel .section-head p{max-width:48ch}
 .tide-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -174,4 +152,183 @@ body.show-setup .map-action-btn{display:none}
   color:#eaf0f8;
   border:1px solid var(--line);
   font:14px system-ui, sans-serif;
+}
+
+
+/* Inputs / polar UI tidy */
+@media (min-width: 900px){
+  body.show-setup .panel.controls.setup-page{
+    min-height:620px;
+    display:flex;
+    flex-direction:column;
+  }
+  body.show-setup .panel.controls.setup-page .setup-actions{
+    margin-top:auto;
+  }
+}
+.manual-targets{
+  margin-top:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 12px;
+  background:rgba(255,255,255,0.025);
+}
+.manual-targets summary{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  font-weight:800;
+  cursor:pointer;
+}
+.manual-targets.manual-collapsed{
+  opacity:.75;
+}
+.manual-target-grid{
+  margin-top:8px;
+}
+.polar-controls{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.polar-controls label{
+  min-width:142px;
+  margin:0;
+}
+.polar-controls input{
+  max-width:110px;
+  text-align:right;
+}
+@media (max-width:720px){
+  .polar-controls{
+    width:100%;
+    justify-content:stretch;
+  }
+  .polar-controls label,
+  .polar-controls .tab-buttons{
+    width:100%;
+  }
+  .manual-target-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* Full-width setup panels */
+body.show-setup main{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+body.show-setup .panel.controls.setup-page,
+body.show-setup .tide-panel.setup-page,
+body.show-setup .polar-panel.setup-page{
+  width:100%;
+  max-width:none;
+  box-sizing:border-box;
+}
+
+@media (min-width: 900px){
+  body.show-setup .panel.controls.setup-page .grid.two{
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+  }
+
+  body.show-setup .manual-target-grid{
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+
+  body.show-setup .tide-panel.setup-page .grid.two{
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px){
+  body.show-setup .panel.controls.setup-page .grid.two,
+  body.show-setup .tide-panel.setup-page .grid.two{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media (max-width: 640px){
+  body.show-setup .panel.controls.setup-page .grid.two,
+  body.show-setup .tide-panel.setup-page .grid.two,
+  body.show-setup .manual-target-grid{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* Full-width Build Course panel */
+body.show-course .course-builder,
+body.show-course .panel.course-builder,
+body.show-course .build-course-panel{
+  width:100%;
+  max-width:none;
+  box-sizing:border-box;
+}
+
+body.show-course .course-builder .grid,
+body.show-course .panel.course-builder .grid{
+  width:100%;
+}
+
+@media (min-width: 900px){
+  body.show-course .course-builder{
+    grid-column:1 / -1;
+  }
+
+  body.show-course .course-builder .grid.two{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+
+  body.show-course .course-builder .grid.three{
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 899px){
+  body.show-course .course-builder .grid.two,
+  body.show-course .course-builder .grid.three{
+    grid-template-columns:1fr;
+  }
+}
+
+
+/* Ensure course page panels span full content width */
+body.show-course main{
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+body.show-course .panel{
+  width:100%;
+  max-width:none;
+}
+
+
+/* Phone GPS controls */
+.phone-gps-controls{
+  margin-top:-8px;
+}
+.phone-gps-row{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:8px;
+}
+#phoneGpsStatus{
+  color:var(--muted);
+}
+@media (max-width:720px){
+  .phone-gps-row{
+    grid-template-columns:1fr 1fr;
+  }
+}
+@media (max-width:420px){
+  .phone-gps-row{
+    grid-template-columns:1fr;
+  }
 }

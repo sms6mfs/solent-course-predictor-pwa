@@ -86,7 +86,7 @@ function readInputs(){
     twd: Number($('twd').value), tws: Number($('tws').value), set: Number($('set').value), drift: Number($('drift').value),
     usePolar: $('usePolar').value === 'Yes', upTwa: Number($('upTwa').value), reachTwa: Number($('reachTwa').value), dnTwa: Number($('dnTwa').value),
     upBsp: Number($('upBsp').value), reachBsp: Number($('reachBsp').value), dnBsp: Number($('dnBsp').value),
-    polarFactor: Number($('polarFactor').value || 1), magVar: Number($('magVar').value || 0)
+    polarFactor: Number(($('polarFactorPct')?.value || 100)) / 100, magVar: Number($('magVar').value || 0)
   };
 }
 
@@ -3040,3 +3040,1292 @@ function validateTdmComponentOrderExample(){
     setDegTo: norm360(Math.atan2(east, north) * DEG)
   };
 }
+
+
+// ---------------- Free-leg current-corrected CTS fix ----------------
+// On free/reaching legs, the boat should not simply point at the mark.
+// It should steer a heading through the water that offsets current so COG is toward the mark.
+// This solves for heading H where cross-track(boat_vector(H) + current_vector, legBearing) = 0.
+function solveCurrentCorrectedHeadingToMark(legBearing, bsp, currentSet, currentDrift){
+  const current = currentToVector(currentSet, currentDrift);
+  const bearingRad = legBearing * RAD;
+
+  // Unit vectors: along leg and cross-track left/right in the app's x=east, y=north frame.
+  const along = {x: Math.sin(bearingRad), y: Math.cos(bearingRad)};
+  const cross = {x: Math.sin((legBearing + 90) * RAD), y: Math.cos((legBearing + 90) * RAD)};
+
+  const currentCross = current.x * cross.x + current.y * cross.y;
+  const ratio = Math.max(-0.98, Math.min(0.98, -currentCross / Math.max(0.01, bsp)));
+
+  // Two possible water headings can zero cross-track. Pick the one with positive along-track VMG.
+  const offset = Math.asin(ratio) * DEG;
+  const candidates = [norm360(legBearing + offset), norm360(legBearing + (180 - offset))];
+
+  let best = {heading: legBearing, sogAlong: -Infinity, cog: legBearing, sog: 0};
+  for(const hdg of candidates){
+    const boat = vecFrom(hdg, bsp);
+    const ground = addVec(boat, current);
+    const sogAlong = ground.x * along.x + ground.y * along.y;
+    const sog = Math.hypot(ground.x, ground.y);
+    const cog = norm360(Math.atan2(ground.x, ground.y) * DEG);
+    if(sogAlong > best.sogAlong){
+      best = {heading: hdg, sogAlong, cog, sog};
+    }
+  }
+
+  // If the current is too strong for a true zero-cross solution, fall back to aiming up-current
+  // with the best possible heading near the leg bearing.
+  if(best.sogAlong <= 0){
+    let bestScan = best;
+    for(let d=-80; d<=80; d+=2){
+      const hdg = norm360(legBearing + d);
+      const boat = vecFrom(hdg, bsp);
+      const ground = addVec(boat, current);
+      const crossErr = Math.abs(ground.x * cross.x + ground.y * cross.y);
+      const sogAlong = ground.x * along.x + ground.y * along.y;
+      const score = sogAlong - crossErr * 2;
+      if(score > (bestScan.score ?? -Infinity)){
+        const sog = Math.hypot(ground.x, ground.y);
+        const cog = norm360(Math.atan2(ground.x, ground.y) * DEG);
+        bestScan = {heading: hdg, sogAlong, cog, sog, score};
+      }
+    }
+    best = bestScan;
+  }
+
+  return best;
+}
+
+// Patch static reaching solver too, so table CTS and time reflect current-offset steering.
+if(typeof solveReachLeg === 'function' && !solveReachLeg.__ctsCorrectedWrapped){
+  solveReachLeg = function(distNm, bearing, target, inputs){
+    const cts = solveCurrentCorrectedHeadingToMark(bearing, target.bsp, inputs.set, inputs.drift);
+    const totalHours = distNm / Math.max(cts.sogAlong, 0.01);
+
+    // Tack side from wind relative to the heading being steered, not the mark bearing.
+    const signedTwa = norm180(cts.heading - inputs.twd);
+    const portHours = signedTwa < 0 ? totalHours : 0;
+    const stbdHours = signedTwa >= 0 ? totalHours : 0;
+
+    return {
+      portHours,
+      stbdHours,
+      totalHours,
+      headings:{direct:cts.heading},
+      cts: fmt(cts.heading,0),
+      cog: cts.cog,
+      sog: cts.sog
+    };
+  };
+  solveReachLeg.__ctsCorrectedWrapped = true;
+}
+
+// Patch whichever simulateCourse implementation is currently active by overriding reach/free-leg branch.
+if(typeof simulateCourse === 'function' && !simulateCourse.__freeLegCtsWrapped){
+  const __simulateCourseBeforeFreeLegPatch = simulateCourse;
+
+  // Rather than trying to surgically edit older generated versions, override with a guarded
+  // simulator that keeps the current tack/gybe behaviour but fixes free-leg CTS.
+  simulateCourse = function(){
+    if(typeof clearNullIslandCustomPoints === 'function') clearNullIslandCustomPoints();
+    readCustomPoints();
+
+    const inputs = readInputs();
+    const simCfg = readSimulationInputs();
+
+    if(!course || course.length < 2){
+      lastSimulation = null;
+      renderTable(predict());
+      renderMap(predict());
+      return null;
+    }
+    if(Number.isNaN(simCfg.raceStart.getTime())){
+      alert('Enter a valid race start time.');
+      return null;
+    }
+    if(($('currentSource')?.value === 'tdm') && (!portsmouthHwTime || Number.isNaN(portsmouthHwTime.getTime()))){
+      alert('Solent Currents mode needs a Portsmouth HW time from EasyTide.');
+      return null;
+    }
+
+    const courseClone = course
+      .filter(m => validPoint(m))
+      .map((m, i) => ({
+        id: m?.id ?? `course_${i}`,
+        name: m?.name ?? `Mark ${i+1}`,
+        lat: Number(m?.lat),
+        lon: Number(m?.lon),
+        custom: !!m?.custom
+      }));
+
+    if(courseClone.length < 2){
+      lastSimulation = null;
+      renderTable(predict());
+      renderMap(predict());
+      return null;
+    }
+
+    let state = {
+      lat: courseClone[0].lat,
+      lon: courseClone[0].lon,
+      time: new Date(simCfg.raceStart.getTime()),
+      mode: null,
+      tackAgeSec: 999999
+    };
+
+    let simTime = new Date(simCfg.raceStart.getTime());
+    const legSims = [];
+    const fullTrack = [];
+
+    for(let i=0; i<courseClone.length-1; i++){
+      const from = courseClone[i];
+      const to = courseClone[i+1];
+      const legBearing = bearingDeg(from, to);
+      const legDist = distanceNm(from, to);
+      const signedAtLegStart = norm180(legBearing - inputs.twd);
+      const mode = legMode(Math.abs(signedAtLegStart));
+      const target = targetFor(mode, inputs, signedAtLegStart);
+
+      const staticPlan = mode === 'reach'
+        ? solveReachLeg(legDist, legBearing, target, inputs)
+        : solveTwoBoardLeg(legDist, legBearing, mode, target, inputs);
+
+      const staticTotalSec = Math.max(1, staticPlan.totalHours * 3600);
+      const staticPortSec = Math.max(0, staticPlan.portHours * 3600);
+      const staticStbdSec = Math.max(0, staticPlan.stbdHours * 3600);
+      const plannedPortRatio = staticPortSec / staticTotalSec;
+
+      const legStartTime = new Date(simTime.getTime());
+      let portSec = 0, stbdSec = 0, directSec = 0, elapsedSec = 0;
+      let lastBoard = null;
+      let tackAgeSec = 999999;
+      let bestDistToMark = distanceNm(state, to);
+      let noProgressSteps = 0;
+      const track = [{lat:state.lat, lon:state.lon, time:new Date(simTime.getTime()), mode:'start'}];
+
+      const maxLegSec = Math.max(staticTotalSec * 2.2, staticTotalSec + 1200);
+      const maxCrossNm = Math.max(0.25, legDist * 0.45);
+      let guard = 0;
+
+      while(elapsedSec < maxLegSec && guard < 1440){
+        guard += 1;
+
+        const distToMark = distanceNm(state, to);
+        if(distToMark < 0.015) break;
+
+        const current = getTdmCurrentAt(state.lat, state.lon, simTime);
+        const currentVec = currentToVector(current.set, current.drift);
+
+        let board, heading, bsp, sog, cog;
+        let targetBearingNow = bearingDeg(state, to);
+
+        if(mode === 'reach'){
+          const signedNowForSpeed = norm180(targetBearingNow - inputs.twd);
+          bsp = targetFor('reach', inputs, signedNowForSpeed).bsp;
+
+          const cts = solveCurrentCorrectedHeadingToMark(targetBearingNow, bsp, current.set, current.drift);
+          heading = cts.heading;
+          cog = cts.cog;
+          sog = cts.sog;
+
+          const signedTwaFromHeading = norm180(heading - inputs.twd);
+          board = signedTwaFromHeading < 0 ? 'port' : 'stbd';
+        } else {
+          const frame = alongCrossFromStart(from, legBearing, state);
+          const hdg = tackHeadings(mode, inputs.twd, target.twa);
+
+          if(staticPortSec <= 1) board = 'stbd';
+          else if(staticStbdSec <= 1) board = 'port';
+          else if(frame.cross > maxCrossNm && tackAgeSec >= simCfg.minTackSec) board = 'stbd';
+          else if(frame.cross < -maxCrossNm && tackAgeSec >= simCfg.minTackSec) board = 'port';
+          else {
+            const actualPortRatio = elapsedSec > 0 ? portSec / elapsedSec : 0;
+            const wanted = actualPortRatio < plannedPortRatio ? 'port' : 'stbd';
+            board = (lastBoard && wanted !== lastBoard && tackAgeSec < simCfg.minTackSec) ? lastBoard : wanted;
+          }
+
+          heading = board === 'port' ? hdg.port : hdg.stbd;
+          bsp = target.bsp;
+          const boatVec = vecFrom(heading, bsp);
+          const ground = addVec(boatVec, currentVec);
+          cog = norm360(Math.atan2(ground.x, ground.y) * DEG);
+          sog = Math.hypot(ground.x, ground.y);
+        }
+
+        if(lastBoard && board !== lastBoard && simCfg.tackPenaltySec > 0){
+          simTime = new Date(simTime.getTime() + simCfg.tackPenaltySec * 1000);
+          elapsedSec += simCfg.tackPenaltySec;
+          if(board === 'port') portSec += simCfg.tackPenaltySec;
+          else if(board === 'stbd') stbdSec += simCfg.tackPenaltySec;
+          else directSec += simCfg.tackPenaltySec;
+          tackAgeSec = 0;
+        }
+
+        let dt = Math.min(simCfg.stepSec, maxLegSec - elapsedSec);
+        const stepNm = sog * dt / 3600;
+        let next = destinationPointNm(state, cog, stepNm);
+
+        const nextDist = distanceNm(next, to);
+        const made = distToMark - nextDist;
+        if(made > 0 && distToMark <= made){
+          dt = dt * (distToMark / made);
+          next = {lat:to.lat, lon:to.lon};
+        } else if(nextDist > bestDistToMark + 0.03){
+          noProgressSteps += 1;
+          if(noProgressSteps >= 3){
+            // If tide/wind/CTS numerical edge case fails, snap to final fraction along leg rather than run away.
+            dt = Math.min(dt, distToMark / Math.max(0.01, sog) * 3600);
+            next = destinationPointNm(state, targetBearingNow, Math.min(distToMark, sog * dt / 3600));
+          }
+        } else {
+          noProgressSteps = 0;
+        }
+
+        simTime = new Date(simTime.getTime() + dt * 1000);
+        elapsedSec += dt;
+        tackAgeSec = lastBoard === board ? tackAgeSec + dt : dt;
+        lastBoard = board;
+
+        if(board === 'port') portSec += dt;
+        else if(board === 'stbd') stbdSec += dt;
+        else directSec += dt;
+
+        const point = {
+          lat: next.lat,
+          lon: next.lon,
+          time: new Date(simTime.getTime()),
+          mode: board,
+          heading,
+          cog,
+          sog,
+          bsp,
+          current
+        };
+
+        state = {...point, tackAgeSec};
+        track.push(point);
+        fullTrack.push({...point, legIndex:i});
+        bestDistToMark = Math.min(bestDistToMark, nextDist);
+
+        if(Math.abs(next.lat - to.lat) < 1e-10 && Math.abs(next.lon - to.lon) < 1e-10) break;
+      }
+
+      const finalPoint = track[track.length - 1];
+      const endedAtMark = distanceNm(finalPoint, to) < 0.02;
+      if(!endedAtMark){
+        track.push({lat:to.lat, lon:to.lon, time:new Date(simTime.getTime()), mode:lastBoard || 'finish', guardSnap:true});
+      }
+
+      state = {lat: to.lat, lon: to.lon, time: new Date(simTime.getTime()), mode: lastBoard, tackAgeSec};
+
+      legSims.push({
+        legIndex:i,
+        from: course[i],
+        to: course[i+1],
+        mode,
+        startTime: legStartTime,
+        finishTime: new Date(simTime.getTime()),
+        elapsedSec,
+        portSec,
+        stbdSec,
+        directSec,
+        guardLimited: elapsedSec >= maxLegSec || !endedAtMark,
+        track
+      });
+    }
+
+    lastSimulation = {
+      startTime: simCfg.raceStart,
+      finishTime: new Date(simTime.getTime()),
+      elapsedSec: (simTime.getTime() - simCfg.raceStart.getTime()) / 1000,
+      legs: legSims,
+      track: fullTrack,
+      note: 'free-leg-current-corrected-cts'
+    };
+
+    const staticResults = predict();
+    renderCourseList();
+    renderTable(staticResults);
+    renderMap(staticResults);
+    return lastSimulation;
+  };
+
+  simulateCourse.__freeLegCtsWrapped = true;
+}
+
+
+// ---------------- Current-solved tacking/gybing leg fix ----------------
+// For upwind/downwind legs, target headings are still set by wind/TWA/polar.
+// The optimisation is the board choice and split.  This helper solves the remaining
+// two-board problem using the LOCAL current at the boat's current position/time.
+function solveCurrentAwareTwoBoardRemaining(distNm, bearing, mode, target, inputs, currentSet, currentDrift){
+  const current = currentToVector(currentSet, currentDrift);
+  const hdg = tackHeadings(mode, inputs.twd, target.twa);
+
+  const vp = addVec(vecFrom(hdg.port, target.bsp), current);
+  const vs = addVec(vecFrom(hdg.stbd, target.bsp), current);
+
+  const ap = vecProject(vp, bearing);
+  const as = vecProject(vs, bearing);
+  const xp = vecCross(vp, bearing);
+  const xs = vecCross(vs, bearing);
+
+  const denom = (ap * xs - as * xp);
+  let tp = NaN, ts = NaN;
+
+  if(Math.abs(denom) > 1e-9){
+    tp = distNm * xs / denom;
+    ts = -distNm * xp / denom;
+  }
+
+  if(!Number.isFinite(tp) || !Number.isFinite(ts) || tp < -1e-6 || ts < -1e-6){
+    // If the pure cross-track cancellation solution is not available, choose the board
+    // with the best positive progress while penalising cross-track growth.
+    const portScore = ap - Math.abs(xp) * 0.65;
+    const stbdScore = as - Math.abs(xs) * 0.65;
+    if(portScore >= stbdScore){
+      tp = distNm / Math.max(ap, 0.01);
+      ts = 0;
+    } else {
+      tp = 0;
+      ts = distNm / Math.max(as, 0.01);
+    }
+  }
+
+  tp = Math.max(0, tp);
+  ts = Math.max(0, ts);
+
+  return {
+    portHours: tp,
+    stbdHours: ts,
+    totalHours: tp + ts,
+    headings: hdg,
+    portGround: vp,
+    stbdGround: vs,
+    portAlong: ap,
+    stbdAlong: as,
+    portCross: xp,
+    stbdCross: xs,
+    cts: `${fmt(hdg.port,0)} / ${fmt(hdg.stbd,0)}`
+  };
+}
+
+// Patch conventional/static two-board solver to make its structure explicit and reusable.
+// It still uses manual/set input current in the static table; the sim uses local TDM current.
+if(typeof solveTwoBoardLeg === 'function' && !solveTwoBoardLeg.__currentSolvedWrapped){
+  solveTwoBoardLeg = function(distNm, bearing, mode, target, inputs){
+    return solveCurrentAwareTwoBoardRemaining(distNm, bearing, mode, target, inputs, inputs.set, inputs.drift);
+  };
+  solveTwoBoardLeg.__currentSolvedWrapped = true;
+}
+
+function chooseCurrentSolvedBoard(state, to, mode, target, inputs, current, simCfg, lastBoard, tackAgeSec, portSec, stbdSec, elapsedSec){
+  const bearingNow = bearingDeg(state, to);
+  const distNow = distanceNm(state, to);
+  const plan = solveCurrentAwareTwoBoardRemaining(distNow, bearingNow, mode, target, inputs, current.set, current.drift);
+
+  const remainingTotal = Math.max(0.0001, plan.totalHours * 3600);
+  const desiredPortRatio = (plan.portHours * 3600) / remainingTotal;
+
+  let wanted;
+  if(plan.portHours <= 0.0002) wanted = 'stbd';
+  else if(plan.stbdHours <= 0.0002) wanted = 'port';
+  else {
+    // If we are currently under-consuming port relative to the local solution, sail port;
+    // otherwise sail starboard. This is re-solved every step as current changes.
+    const recentPortRatio = elapsedSec > 0 ? portSec / Math.max(1, elapsedSec) : 0;
+    wanted = recentPortRatio < desiredPortRatio ? 'port' : 'stbd';
+  }
+
+  if(lastBoard && wanted !== lastBoard && tackAgeSec < simCfg.minTackSec){
+    wanted = lastBoard;
+  }
+
+  const hdg = wanted === 'port' ? plan.headings.port : plan.headings.stbd;
+  const ground = wanted === 'port' ? plan.portGround : plan.stbdGround;
+  const sog = Math.hypot(ground.x, ground.y);
+  const cog = norm360(Math.atan2(ground.x, ground.y) * DEG);
+
+  return {
+    board: wanted,
+    heading: hdg,
+    bsp: target.bsp,
+    sog,
+    cog,
+    plan
+  };
+}
+
+// Override sim again: free legs use current-corrected CTS; tack/gybe legs re-solve board split
+// from the live position with live Solent Currents.
+if(typeof simulateCourse === 'function' && !simulateCourse.__currentSolvedTacksWrapped){
+  simulateCourse = function(){
+    if(typeof clearNullIslandCustomPoints === 'function') clearNullIslandCustomPoints();
+    readCustomPoints();
+
+    const inputs = readInputs();
+    const simCfg = readSimulationInputs();
+
+    if(!course || course.length < 2){
+      lastSimulation = null;
+      renderTable(predict());
+      renderMap(predict());
+      return null;
+    }
+    if(Number.isNaN(simCfg.raceStart.getTime())){
+      alert('Enter a valid race start time.');
+      return null;
+    }
+    if(($('currentSource')?.value === 'tdm') && (!portsmouthHwTime || Number.isNaN(portsmouthHwTime.getTime()))){
+      alert('Solent Currents mode needs a Portsmouth HW time from EasyTide.');
+      return null;
+    }
+
+    const courseClone = course
+      .filter(m => validPoint(m))
+      .map((m, i) => ({
+        id: m?.id ?? `course_${i}`,
+        name: m?.name ?? `Mark ${i+1}`,
+        lat: Number(m?.lat),
+        lon: Number(m?.lon),
+        custom: !!m?.custom
+      }));
+
+    if(courseClone.length < 2){
+      lastSimulation = null;
+      renderTable(predict());
+      renderMap(predict());
+      return null;
+    }
+
+    let state = {
+      lat: courseClone[0].lat,
+      lon: courseClone[0].lon,
+      time: new Date(simCfg.raceStart.getTime()),
+      mode: null,
+      tackAgeSec: 999999
+    };
+
+    let simTime = new Date(simCfg.raceStart.getTime());
+    const legSims = [];
+    const fullTrack = [];
+
+    for(let i=0; i<courseClone.length-1; i++){
+      const from = courseClone[i];
+      const to = courseClone[i+1];
+
+      const initialBearing = bearingDeg(from, to);
+      const initialDist = distanceNm(from, to);
+      const signedAtLegStart = norm180(initialBearing - inputs.twd);
+      const mode = legMode(Math.abs(signedAtLegStart));
+      const target = targetFor(mode, inputs, signedAtLegStart);
+
+      const staticPlan = mode === 'reach'
+        ? solveReachLeg(initialDist, initialBearing, target, inputs)
+        : solveTwoBoardLeg(initialDist, initialBearing, mode, target, inputs);
+
+      const staticTotalSec = Math.max(1, staticPlan.totalHours * 3600);
+      const legStartTime = new Date(simTime.getTime());
+
+      let portSec = 0, stbdSec = 0, directSec = 0, elapsedSec = 0;
+      let lastBoard = null;
+      let tackAgeSec = 999999;
+      let bestDistToMark = distanceNm(state, to);
+      let noProgressSteps = 0;
+
+      const track = [{lat:state.lat, lon:state.lon, time:new Date(simTime.getTime()), mode:'start'}];
+
+      const maxLegSec = Math.max(staticTotalSec * 2.4, staticTotalSec + 1500);
+      let guard = 0;
+
+      while(elapsedSec < maxLegSec && guard < 1440){
+        guard += 1;
+
+        const distToMark = distanceNm(state, to);
+        if(distToMark < 0.015) break;
+
+        const bearingNow = bearingDeg(state, to);
+        const current = getTdmCurrentAt(state.lat, state.lon, simTime);
+
+        let board, heading, bsp, sog, cog;
+
+        if(mode === 'reach'){
+          const signedNowForSpeed = norm180(bearingNow - inputs.twd);
+          bsp = targetFor('reach', inputs, signedNowForSpeed).bsp;
+
+          const cts = solveCurrentCorrectedHeadingToMark(bearingNow, bsp, current.set, current.drift);
+          heading = cts.heading;
+          cog = cts.cog;
+          sog = cts.sog;
+
+          const signedTwaFromHeading = norm180(heading - inputs.twd);
+          board = signedTwaFromHeading < 0 ? 'port' : 'stbd';
+        } else {
+          const localTarget = targetFor(mode, inputs, norm180(bearingNow - inputs.twd));
+          const choice = chooseCurrentSolvedBoard(
+            state, to, mode, localTarget, inputs, current, simCfg,
+            lastBoard, tackAgeSec, portSec, stbdSec, elapsedSec
+          );
+
+          board = choice.board;
+          heading = choice.heading;
+          bsp = choice.bsp;
+          cog = choice.cog;
+          sog = choice.sog;
+        }
+
+        if(lastBoard && board !== lastBoard && simCfg.tackPenaltySec > 0){
+          simTime = new Date(simTime.getTime() + simCfg.tackPenaltySec * 1000);
+          elapsedSec += simCfg.tackPenaltySec;
+          if(board === 'port') portSec += simCfg.tackPenaltySec;
+          else if(board === 'stbd') stbdSec += simCfg.tackPenaltySec;
+          else directSec += simCfg.tackPenaltySec;
+          tackAgeSec = 0;
+        }
+
+        let dt = Math.min(simCfg.stepSec, maxLegSec - elapsedSec);
+        const stepNm = sog * dt / 3600;
+        let next = destinationPointNm(state, cog, stepNm);
+
+        const nextDist = distanceNm(next, to);
+        const made = distToMark - nextDist;
+
+        // Finish interpolation.
+        if(made > 0 && distToMark <= made){
+          dt = dt * (distToMark / made);
+          next = {lat:to.lat, lon:to.lon};
+        } else if(nextDist > bestDistToMark + 0.04){
+          noProgressSteps += 1;
+
+          // If repeated non-progress occurs, solve current-corrected direct CTS for one step
+          // to recover towards the mark rather than run away.
+          if(noProgressSteps >= 3){
+            const directBearing = bearingDeg(state, to);
+            const directSigned = norm180(directBearing - inputs.twd);
+            const directBsp = targetFor('reach', inputs, directSigned).bsp || bsp;
+            const cts = solveCurrentCorrectedHeadingToMark(directBearing, directBsp, current.set, current.drift);
+            heading = cts.heading;
+            cog = cts.cog;
+            sog = cts.sog;
+            const recoveryNm = sog * dt / 3600;
+            next = destinationPointNm(state, cog, recoveryNm);
+            const recoverySigned = norm180(heading - inputs.twd);
+            board = recoverySigned < 0 ? 'port' : 'stbd';
+          }
+        } else {
+          noProgressSteps = 0;
+        }
+
+        simTime = new Date(simTime.getTime() + dt * 1000);
+        elapsedSec += dt;
+        tackAgeSec = lastBoard === board ? tackAgeSec + dt : dt;
+        lastBoard = board;
+
+        if(board === 'port') portSec += dt;
+        else if(board === 'stbd') stbdSec += dt;
+        else directSec += dt;
+
+        const point = {
+          lat: next.lat,
+          lon: next.lon,
+          time: new Date(simTime.getTime()),
+          mode: board,
+          heading,
+          cog,
+          sog,
+          bsp,
+          current
+        };
+
+        state = {...point, tackAgeSec};
+        track.push(point);
+        fullTrack.push({...point, legIndex:i});
+        bestDistToMark = Math.min(bestDistToMark, nextDist);
+
+        if(Math.abs(next.lat - to.lat) < 1e-10 && Math.abs(next.lon - to.lon) < 1e-10) break;
+      }
+
+      const finalPoint = track[track.length - 1];
+      const endedAtMark = distanceNm(finalPoint, to) < 0.02;
+
+      if(!endedAtMark){
+        track.push({lat:to.lat, lon:to.lon, time:new Date(simTime.getTime()), mode:lastBoard || 'finish', guardSnap:true});
+      }
+
+      state = {lat: to.lat, lon: to.lon, time: new Date(simTime.getTime()), mode: lastBoard, tackAgeSec};
+
+      legSims.push({
+        legIndex:i,
+        from: course[i],
+        to: course[i+1],
+        mode,
+        startTime: legStartTime,
+        finishTime: new Date(simTime.getTime()),
+        elapsedSec,
+        portSec,
+        stbdSec,
+        directSec,
+        guardLimited: elapsedSec >= maxLegSec || !endedAtMark,
+        track
+      });
+    }
+
+    lastSimulation = {
+      startTime: simCfg.raceStart,
+      finishTime: new Date(simTime.getTime()),
+      elapsedSec: (simTime.getTime() - simCfg.raceStart.getTime()) / 1000,
+      legs: legSims,
+      track: fullTrack,
+      note: 'current-solved-tack-gybe-legs'
+    };
+
+    const staticResults = predict();
+    renderCourseList();
+    renderTable(staticResults);
+    renderMap(staticResults);
+    return lastSimulation;
+  };
+
+  simulateCourse.__currentSolvedTacksWrapped = true;
+}
+
+
+// ---------------- Inputs / polar UI tidy ----------------
+function syncManualTargetsVisibility(){
+  const usePolar = $('usePolar')?.value === 'Yes';
+  const details = $('manualTargets');
+  if(!details) return;
+  if(usePolar){
+    details.open = false;
+    details.classList.add('manual-collapsed');
+  } else {
+    details.open = true;
+    details.classList.remove('manual-collapsed');
+  }
+}
+function bindInputsPolarUi(){
+  $('usePolar')?.addEventListener('change', () => {
+    syncManualTargetsVisibility();
+    updateAll?.();
+  });
+  $('polarFactorPct')?.addEventListener('input', () => updateAll?.());
+  $('polarFactorPct')?.addEventListener('change', () => updateAll?.());
+  syncManualTargetsVisibility();
+}
+window.addEventListener('DOMContentLoaded', bindInputsPolarUi);
+
+
+// ---------------- Two-pass tack/gybe simulator ----------------
+// For tacking/gybing legs:
+// Pass 1: compare two one-change routes:
+//   A) port first, then tack/gybe once to starboard for the mark
+//   B) starboard first, then tack/gybe once to port for the mark
+// Pass 2: search earlier/later change fractions to see if a faster route exists.
+// This avoids the old reactive stepper getting lost near the waypoint.
+
+function groundVecForHeadingBspCurrent(heading, bsp, current){
+  return addVec(vecFrom(heading, bsp), currentToVector(current.set, current.drift));
+}
+
+function advancePointByVec(point, groundVec, dtSec){
+  const cog = norm360(Math.atan2(groundVec.x, groundVec.y) * DEG);
+  const sog = Math.hypot(groundVec.x, groundVec.y);
+  return {
+    ...destinationPointNm(point, cog, sog * dtSec / 3600),
+    cog,
+    sog
+  };
+}
+
+function signedCrossTrackToLine(from, bearing, p){
+  const d = distanceNm(from, p);
+  const b = bearingDeg(from, p);
+  return d * Math.sin(norm180(b - bearing) * RAD);
+}
+
+function lineProgressNm(from, bearing, p){
+  const d = distanceNm(from, p);
+  const b = bearingDeg(from, p);
+  return d * Math.cos(norm180(b - bearing) * RAD);
+}
+
+function oneBoardTimeToMarkByProjection(pos, to, heading, bsp, current){
+  const bearing = bearingDeg(pos, to);
+  const dist = distanceNm(pos, to);
+  const ground = groundVecForHeadingBspCurrent(heading, bsp, current);
+  const along = vecProject(ground, bearing);
+  if(along <= 0.01) return Infinity;
+  return dist / along * 3600;
+}
+
+function simulateOneBoardSegment(startPos, startTime, board, heading, bsp, durationSec, simCfg, currentProvider){
+  const points = [];
+  let p = {lat:startPos.lat, lon:startPos.lon};
+  let t = new Date(startTime.getTime());
+  let remaining = Math.max(0, durationSec);
+  let elapsed = 0;
+
+  while(remaining > 0.001){
+    const dt = Math.min(simCfg.stepSec, remaining);
+    const current = currentProvider(p, t);
+    const ground = groundVecForHeadingBspCurrent(heading, bsp, current);
+    const next = advancePointByVec(p, ground, dt);
+    t = new Date(t.getTime() + dt * 1000);
+    elapsed += dt;
+    remaining -= dt;
+
+    points.push({
+      lat: next.lat,
+      lon: next.lon,
+      time: new Date(t.getTime()),
+      mode: board,
+      heading,
+      cog: next.cog,
+      sog: next.sog,
+      bsp,
+      current
+    });
+
+    p = {lat: next.lat, lon: next.lon};
+  }
+
+  return {end:p, endTime:t, elapsedSec:elapsed, points};
+}
+
+function estimateTwoBoardCandidate(start, to, mode, firstBoard, target, inputs, startTime, simCfg, currentProvider, firstFrac){
+  const secondBoard = firstBoard === 'port' ? 'stbd' : 'port';
+  const bearing0 = bearingDeg(start, to);
+  const dist0 = distanceNm(start, to);
+  const hdg = tackHeadings(mode, inputs.twd, target.twa);
+  const h1 = firstBoard === 'port' ? hdg.port : hdg.stbd;
+  const h2 = secondBoard === 'port' ? hdg.port : hdg.stbd;
+
+  const initialCurrent = currentProvider(start, startTime);
+  const initialPlan = solveCurrentAwareTwoBoardRemaining(dist0, bearing0, mode, target, inputs, initialCurrent.set, initialCurrent.drift);
+  const total0 = Math.max(1, initialPlan.totalHours * 3600);
+  const firstIdeal = firstBoard === 'port' ? initialPlan.portHours * 3600 : initialPlan.stbdHours * 3600;
+  const firstSec = Math.max(0, firstIdeal * firstFrac);
+
+  const firstSeg = simulateOneBoardSegment(start, startTime, firstBoard, h1, target.bsp, firstSec, simCfg, currentProvider);
+  let switchTime = new Date(firstSeg.endTime.getTime());
+  let tackPenalty = 0;
+
+  if(firstSec > 1 && simCfg.tackPenaltySec > 0){
+    switchTime = new Date(switchTime.getTime() + simCfg.tackPenaltySec * 1000);
+    tackPenalty = simCfg.tackPenaltySec;
+  }
+
+  // Solve second-board duration from the switch point to the mark.
+  const secondCurrent = currentProvider(firstSeg.end, switchTime);
+  const secondTimeGuess = oneBoardTimeToMarkByProjection(firstSeg.end, to, h2, target.bsp, secondCurrent);
+  if(!Number.isFinite(secondTimeGuess) || secondTimeGuess <= 0 || secondTimeGuess > total0 * 4){
+    return null;
+  }
+
+  const secondSeg = simulateOneBoardSegment(firstSeg.end, switchTime, secondBoard, h2, target.bsp, secondTimeGuess, simCfg, currentProvider);
+  const finalDist = distanceNm(secondSeg.end, to);
+  const finalCross = Math.abs(signedCrossTrackToLine(start, bearing0, secondSeg.end));
+  const finalProgress = lineProgressNm(start, bearing0, secondSeg.end);
+
+  // We don't require perfect endpoint yet. Score penalises missing the mark so search can select best.
+  const elapsed = firstSeg.elapsedSec + tackPenalty + secondSeg.elapsedSec;
+  const missPenaltySec = finalDist * 3600 / Math.max(0.1, target.bsp) * 1.8;
+  const overUnderPenalty = Math.abs(finalProgress - dist0) * 240;
+  const scoreSec = elapsed + missPenaltySec + overUnderPenalty;
+
+  const track = [
+    {lat:start.lat, lon:start.lon, time:new Date(startTime.getTime()), mode:firstBoard, heading:h1},
+    ...firstSeg.points,
+    ...secondSeg.points
+  ];
+
+  // Force the last visual point to the mark only if acceptably close; otherwise add a snap marker
+  // but keep penalty in score.
+  const endedNear = finalDist < Math.max(0.04, dist0 * 0.05);
+  if(!endedNear){
+    track.push({
+      lat: to.lat,
+      lon: to.lon,
+      time: new Date(secondSeg.endTime.getTime()),
+      mode: secondBoard,
+      heading:h2,
+      guardSnap:true
+    });
+  } else {
+    track.push({
+      lat: to.lat,
+      lon: to.lon,
+      time: new Date(secondSeg.endTime.getTime()),
+      mode: secondBoard,
+      heading:h2
+    });
+  }
+
+  return {
+    firstBoard,
+    secondBoard,
+    firstSec:firstSeg.elapsedSec,
+    secondSec:secondSeg.elapsedSec,
+    tackPenaltySec:tackPenalty,
+    elapsedSec:elapsed,
+    scoreSec,
+    finalDist,
+    firstFrac,
+    endTime:secondSeg.endTime,
+    track
+  };
+}
+
+function searchTwoPassTackRoute(start, to, mode, target, inputs, startTime, simCfg, currentProvider){
+  const candidates = [];
+
+  // Pass 1: the ideal static/local split, first on port and first on starboard.
+  for(const firstBoard of ['port','stbd']){
+    const c = estimateTwoBoardCandidate(start, to, mode, firstBoard, target, inputs, startTime, simCfg, currentProvider, 1.0);
+    if(c) candidates.push({...c, pass:'corner'});
+  }
+
+  // Pass 2: tack/gybe earlier or later than the initial corner/layline plan.
+  // Fractions <1 mean turn before the corner; >1 means hold longer.
+  const fractions = [0.25,0.35,0.45,0.55,0.65,0.75,0.85,0.95,1.05,1.15,1.30,1.50];
+  for(const firstBoard of ['port','stbd']){
+    for(const frac of fractions){
+      const c = estimateTwoBoardCandidate(start, to, mode, firstBoard, target, inputs, startTime, simCfg, currentProvider, frac);
+      if(c) candidates.push({...c, pass:'search'});
+    }
+  }
+
+  if(!candidates.length) return null;
+  candidates.sort((a,b)=>a.scoreSec-b.scoreSec);
+  return candidates[0];
+}
+
+if(typeof simulateCourse === 'function' && !simulateCourse.__twoPassTackWrapped){
+  simulateCourse = function(){
+    if(typeof clearNullIslandCustomPoints === 'function') clearNullIslandCustomPoints();
+    readCustomPoints();
+
+    const inputs = readInputs();
+    const simCfg = readSimulationInputs();
+
+    if(!course || course.length < 2){
+      lastSimulation = null;
+      renderTable(predict());
+      renderMap(predict());
+      return null;
+    }
+    if(Number.isNaN(simCfg.raceStart.getTime())){
+      alert('Enter a valid race start time.');
+      return null;
+    }
+    if(($('currentSource')?.value === 'tdm') && (!portsmouthHwTime || Number.isNaN(portsmouthHwTime.getTime()))){
+      alert('Solent Currents mode needs a Portsmouth HW time from EasyTide.');
+      return null;
+    }
+
+    const courseClone = course
+      .filter(m => validPoint(m))
+      .map((m, i) => ({
+        id: m?.id ?? `course_${i}`,
+        name: m?.name ?? `Mark ${i+1}`,
+        lat: Number(m?.lat),
+        lon: Number(m?.lon),
+        custom: !!m?.custom
+      }));
+
+    let simTime = new Date(simCfg.raceStart.getTime());
+    let state = {lat:courseClone[0].lat, lon:courseClone[0].lon};
+
+    const legSims = [];
+    const fullTrack = [];
+
+    const currentProvider = (p, t) => getTdmCurrentAt(p.lat, p.lon, t);
+
+    for(let i=0; i<courseClone.length-1; i++){
+      const from = {lat:state.lat, lon:state.lon};
+      const to = courseClone[i+1];
+      const legBearing = bearingDeg(from, to);
+      const legDist = distanceNm(from, to);
+      const signed = norm180(legBearing - inputs.twd);
+      const mode = legMode(Math.abs(signed));
+      const target = targetFor(mode, inputs, signed);
+      const legStartTime = new Date(simTime.getTime());
+
+      let track = [];
+      let portSec = 0, stbdSec = 0, directSec = 0, elapsedSec = 0;
+      let guardLimited = false;
+
+      if(mode === 'reach'){
+        // Reaching/free leg remains current-corrected CTS stepper.
+        let p = {lat:from.lat, lon:from.lon};
+        track.push({lat:p.lat, lon:p.lon, time:new Date(simTime.getTime()), mode:'start'});
+        let guard = 0;
+        while(distanceNm(p, to) > 0.015 && guard < 720){
+          guard += 1;
+          const bearingNow = bearingDeg(p, to);
+          const signedNow = norm180(bearingNow - inputs.twd);
+          const bsp = targetFor('reach', inputs, signedNow).bsp;
+          const current = currentProvider(p, simTime);
+          const cts = solveCurrentCorrectedHeadingToMark(bearingNow, bsp, current.set, current.drift);
+
+          let dt = simCfg.stepSec;
+          const distBefore = distanceNm(p, to);
+          const stepNm = cts.sog * dt / 3600;
+          let next = destinationPointNm(p, cts.cog, stepNm);
+          const distAfter = distanceNm(next, to);
+          const made = distBefore - distAfter;
+          if(made > 0 && distBefore <= made){
+            dt *= distBefore / made;
+            next = {lat:to.lat, lon:to.lon, cog:cts.cog, sog:cts.sog};
+          }
+
+          const board = norm180(cts.heading - inputs.twd) < 0 ? 'port' : 'stbd';
+          if(board === 'port') portSec += dt; else stbdSec += dt;
+          elapsedSec += dt;
+          simTime = new Date(simTime.getTime() + dt*1000);
+
+          const pt = {
+            lat:next.lat,
+            lon:next.lon,
+            time:new Date(simTime.getTime()),
+            mode:board,
+            heading:cts.heading,
+            cog:cts.cog,
+            sog:cts.sog,
+            bsp,
+            current
+          };
+          track.push(pt);
+          fullTrack.push({...pt, legIndex:i});
+          p = {lat:next.lat, lon:next.lon};
+
+          if(Math.abs(next.lat - to.lat) < 1e-10 && Math.abs(next.lon - to.lon) < 1e-10) break;
+        }
+        if(distanceNm(p, to) > 0.02){
+          guardLimited = true;
+          track.push({lat:to.lat, lon:to.lon, time:new Date(simTime.getTime()), mode:'finish', guardSnap:true});
+        }
+        state = {lat:to.lat, lon:to.lon};
+      } else {
+        const route = searchTwoPassTackRoute(from, to, mode, target, inputs, simTime, simCfg, currentProvider);
+        if(route){
+          track = route.track;
+          elapsedSec = route.elapsedSec;
+          portSec = (route.firstBoard === 'port' ? route.firstSec : 0) + (route.secondBoard === 'port' ? route.secondSec : 0);
+          stbdSec = (route.firstBoard === 'stbd' ? route.firstSec : 0) + (route.secondBoard === 'stbd' ? route.secondSec : 0);
+          if(route.secondBoard === 'port') portSec += route.tackPenaltySec; else stbdSec += route.tackPenaltySec;
+          guardLimited = route.finalDist > Math.max(0.04, legDist * 0.05);
+          simTime = new Date(route.endTime.getTime());
+
+          route.track.forEach(pt => {
+            if(pt && Number.isFinite(pt.lat) && Number.isFinite(pt.lon)){
+              fullTrack.push({...pt, legIndex:i});
+            }
+          });
+        } else {
+          // Fallback to previous sim if the two-pass route search fails.
+          guardLimited = true;
+          const staticPlan = solveTwoBoardLeg(legDist, legBearing, mode, target, inputs);
+          elapsedSec = staticPlan.totalHours * 3600;
+          portSec = staticPlan.portHours * 3600;
+          stbdSec = staticPlan.stbdHours * 3600;
+          simTime = new Date(simTime.getTime() + elapsedSec*1000);
+          track = [
+            {lat:from.lat, lon:from.lon, time:new Date(legStartTime.getTime()), mode:'start'},
+            {lat:to.lat, lon:to.lon, time:new Date(simTime.getTime()), mode:'finish', guardSnap:true}
+          ];
+        }
+
+        state = {lat:to.lat, lon:to.lon};
+      }
+
+      legSims.push({
+        legIndex:i,
+        from: course[i],
+        to: course[i+1],
+        mode,
+        startTime: legStartTime,
+        finishTime: new Date(simTime.getTime()),
+        elapsedSec,
+        portSec,
+        stbdSec,
+        directSec,
+        guardLimited,
+        track
+      });
+    }
+
+    lastSimulation = {
+      startTime: simCfg.raceStart,
+      finishTime: new Date(simTime.getTime()),
+      elapsedSec: (simTime.getTime() - simCfg.raceStart.getTime()) / 1000,
+      legs: legSims,
+      track: fullTrack,
+      note: 'two-pass-tack-gybe-search'
+    };
+
+    const staticResults = predict();
+    renderCourseList();
+    renderTable(staticResults);
+    renderMap(staticResults);
+    return lastSimulation;
+  };
+
+  simulateCourse.__twoPassTackWrapped = true;
+}
+
+
+// ---------------- Prevent tight zoom on single course/start point ----------------
+// Selecting the first waypoint or setting custom Start/Finish should not zoom tightly
+// onto one point. Only fit to course bounds when there are at least two course points.
+if(typeof renderMap === 'function' && !renderMap.__noSinglePointZoomWrapped){
+  const __renderMapBeforeNoSingleZoom = renderMap;
+
+  renderMap = function(results=[]){
+    const beforeZoom = map ? map.getZoom() : null;
+    const beforeCenter = map ? map.getCenter() : null;
+    const courseCountBefore = Array.isArray(course) ? course.filter(validPoint).length : 0;
+
+    __renderMapBeforeNoSingleZoom(results);
+
+    if(!map) return;
+
+    const coursePts = Array.isArray(course) ? course.filter(validPoint) : [];
+
+    if(coursePts.length < 2){
+      setTimeout(() => {
+        try{
+          const markPts = Array.isArray(marks) ? marks.filter(validPoint).map(m => [m.lat, m.lon]) : [];
+
+          // If there is a previous sensible view, keep it.
+          if(beforeCenter && Number.isFinite(beforeZoom) && beforeZoom > 7){
+            map.setView(beforeCenter, beforeZoom, {animate:false});
+            return;
+          }
+
+          // Otherwise use all loaded marks, not the single selected point.
+          if(markPts.length){
+            map.fitBounds(L.latLngBounds(markPts).pad(0.10), {maxZoom: 13, animate:false});
+          }
+        }catch(err){
+          console.warn('No single point zoom guard failed', err);
+        }
+      }, 0);
+    }
+  };
+
+  renderMap.__noSinglePointZoomWrapped = true;
+}
+
+// Also patch explicit course-tab fit helper if present.
+if(typeof fitMapToLoadedWaypointsOrCourse === 'function' && !fitMapToLoadedWaypointsOrCourse.__noSinglePointZoomWrapped){
+  fitMapToLoadedWaypointsOrCourse = function(){
+    try{
+      if(!map || typeof L === 'undefined') return;
+
+      setTimeout(() => {
+        map.invalidateSize();
+
+        const coursePts = (Array.isArray(course) ? course : [])
+          .filter(validPoint)
+          .map(m => [Number(m.lat), Number(m.lon)]);
+
+        if(coursePts.length >= 2){
+          map.fitBounds(L.latLngBounds(coursePts).pad(0.18), {maxZoom:15});
+          return;
+        }
+
+        const markPts = (Array.isArray(marks) ? marks : [])
+          .filter(validPoint)
+          .map(m => [Number(m.lat), Number(m.lon)]);
+
+        if(markPts.length){
+          map.fitBounds(L.latLngBounds(markPts).pad(0.10), {maxZoom:13});
+        }
+      }, 180);
+    }catch(err){
+      console.warn('fitMapToLoadedWaypointsOrCourse failed', err);
+    }
+  };
+
+  fitMapToLoadedWaypointsOrCourse.__noSinglePointZoomWrapped = true;
+}
+
+
+// ---------------- Phone GPS / Geolocation overlay ----------------
+let phoneGpsMarker = null;
+let phoneGpsAccuracyCircle = null;
+let phoneGpsWatchId = null;
+let lastPhoneGps = null;
+
+function setPhoneGpsStatus(message, isWarn=false){
+  const el = $('phoneGpsStatus');
+  if(!el) return;
+  el.textContent = message;
+  el.classList.toggle('warn-text', !!isWarn);
+}
+
+function ensurePhoneGpsLayers(){
+  if(!map || typeof L === 'undefined') return false;
+
+  if(!phoneGpsMarker){
+    phoneGpsMarker = L.circleMarker([0,0], {
+      radius: 8,
+      weight: 3,
+      color: '#ffffff',
+      fillColor: '#3aa7ff',
+      fillOpacity: 0.95,
+      opacity: 1
+    }).addTo(map);
+  }
+
+  if(!phoneGpsAccuracyCircle){
+    phoneGpsAccuracyCircle = L.circle([0,0], {
+      radius: 1,
+      weight: 1,
+      color: '#3aa7ff',
+      fillColor: '#3aa7ff',
+      fillOpacity: 0.12,
+      opacity: 0.45
+    }).addTo(map);
+  }
+
+  return true;
+}
+
+function updatePhoneGpsDisplay(pos){
+  if(!ensurePhoneGpsLayers()) return;
+
+  const lat = pos.coords.latitude;
+  const lon = pos.coords.longitude;
+  const accuracy = Number(pos.coords.accuracy || 0);
+  const speedMps = Number(pos.coords.speed);
+  const headingDeg = Number(pos.coords.heading);
+
+  lastPhoneGps = {
+    lat,
+    lon,
+    accuracy,
+    speedKt: Number.isFinite(speedMps) ? speedMps * 1.943844 : null,
+    headingDeg: Number.isFinite(headingDeg) ? headingDeg : null,
+    timestamp: pos.timestamp ? new Date(pos.timestamp) : new Date()
+  };
+
+  phoneGpsMarker.setLatLng([lat, lon]);
+  phoneGpsAccuracyCircle.setLatLng([lat, lon]);
+  if(Number.isFinite(accuracy) && accuracy > 0){
+    phoneGpsAccuracyCircle.setRadius(accuracy);
+  }
+
+  const speedText = Number.isFinite(lastPhoneGps.speedKt) ? `<br>SOG ${lastPhoneGps.speedKt.toFixed(1)} kn` : '';
+  const headingText = Number.isFinite(lastPhoneGps.headingDeg) ? `<br>COG ${lastPhoneGps.headingDeg.toFixed(0)}°` : '';
+
+  phoneGpsMarker.bindTooltip(
+    `Phone GPS<br>${lat.toFixed(6)}, ${lon.toFixed(6)}<br>±${accuracy.toFixed(0)} m${speedText}${headingText}`,
+    {sticky:true}
+  );
+
+  setPhoneGpsStatus(
+    `Phone GPS: ${lat.toFixed(5)}, ${lon.toFixed(5)} · accuracy ±${accuracy.toFixed(0)} m` +
+    (Number.isFinite(lastPhoneGps.speedKt) ? ` · SOG ${lastPhoneGps.speedKt.toFixed(1)} kn` : '')
+  );
+}
+
+function startPhoneGps(){
+  if(!navigator.geolocation){
+    setPhoneGpsStatus('This browser/device does not support GPS location.', true);
+    return;
+  }
+
+  if(!window.isSecureContext){
+    setPhoneGpsStatus('GPS requires HTTPS. Open the GitHub Pages / HTTPS version on the phone.', true);
+    return;
+  }
+
+  if(!map){
+    setPhoneGpsStatus('Open the Course page first so the chart is loaded.', true);
+    return;
+  }
+
+  if(phoneGpsWatchId != null){
+    setPhoneGpsStatus('Phone GPS is already running.');
+    return;
+  }
+
+  setPhoneGpsStatus('Requesting phone GPS permission…');
+
+  phoneGpsWatchId = navigator.geolocation.watchPosition(
+    pos => {
+      updatePhoneGpsDisplay(pos);
+    },
+    err => {
+      let message = err.message || 'Unknown GPS error';
+      if(err.code === 1) message = 'Location permission denied. Enable location access for this site in Safari/Chrome.';
+      if(err.code === 2) message = 'Position unavailable. Check phone GPS/location services.';
+      if(err.code === 3) message = 'GPS timeout. Try again with clear sky view.';
+      setPhoneGpsStatus(message, true);
+      stopPhoneGps(false);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 15000
+    }
+  );
+}
+
+function stopPhoneGps(updateStatus=true){
+  if(phoneGpsWatchId != null && navigator.geolocation){
+    navigator.geolocation.clearWatch(phoneGpsWatchId);
+  }
+  phoneGpsWatchId = null;
+
+  if(updateStatus){
+    setPhoneGpsStatus(lastPhoneGps ? 'Phone GPS stopped. Last position remains shown.' : 'Phone GPS stopped.');
+  }
+}
+
+function centreOnPhoneGps(){
+  if(!map){
+    setPhoneGpsStatus('Chart not loaded yet.', true);
+    return;
+  }
+
+  if(!lastPhoneGps){
+    setPhoneGpsStatus('No phone position yet. Tap Show phone position first.', true);
+    return;
+  }
+
+  map.setView([lastPhoneGps.lat, lastPhoneGps.lon], Math.max(map.getZoom() || 13, 14), {animate:true});
+}
+
+function usePhoneGpsAsStart(){
+  if(!lastPhoneGps){
+    setPhoneGpsStatus('No phone position yet. Tap Show phone position first.', true);
+    return;
+  }
+
+  setCustomPoint('start', lastPhoneGps.lat, lastPhoneGps.lon);
+
+  // Insert or replace first course point with custom start.
+  readCustomPoints();
+  if(validPoint(customStart)){
+    if(Array.isArray(course) && course.length && course[0]?.id === 'custom_start'){
+      course[0] = {...customStart};
+    } else {
+      course.unshift({...customStart});
+    }
+  }
+
+  setPhoneGpsStatus(`Phone GPS set as Start: ${lastPhoneGps.lat.toFixed(6)}, ${lastPhoneGps.lon.toFixed(6)}`);
+  updateAll?.();
+}
+
+function bindPhoneGpsControls(){
+  $('startPhoneGps')?.addEventListener('click', startPhoneGps);
+  $('stopPhoneGps')?.addEventListener('click', () => stopPhoneGps(true));
+  $('centrePhoneGps')?.addEventListener('click', centreOnPhoneGps);
+  $('usePhoneAsStart')?.addEventListener('click', usePhoneGpsAsStart);
+}
+
+window.addEventListener('DOMContentLoaded', bindPhoneGpsControls);

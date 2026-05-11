@@ -799,7 +799,7 @@ function setTideStatus(message, isWarn=false){
 function signedInt32LE(dv, off){ return dv.getInt32(off, true); }
 function signedInt16LE(dv, off){ return dv.getInt16(off, true); }
 
-function decodeWinningTidesTdm(arrayBuffer){
+function decodeSolentCurrentsTdm(arrayBuffer){
   const bytes = new Uint8Array(arrayBuffer);
   const text = Array.from(bytes, b => (b >= 32 && b <= 126) ? String.fromCharCode(b) : '\0').join('');
   const wtMatches = [...text.matchAll(/WT\d{4}\0/g)];
@@ -853,13 +853,13 @@ function decodeWinningTidesTdm(arrayBuffer){
 function updateTideModeUi(){
   const mode = $('currentSource')?.value || 'manual';
   const tdmMode = mode === 'tdm';
-  $('tdmFile')?.closest('label')?.classList.toggle('disabled-field', !tdmMode);
-  $('tideStation')?.closest('label')?.classList.toggle('disabled-field', !tdmMode);
+  
+  
   
   if(!tdmMode){
     setTideStatus('Manual current mode: use Current set/drift in Inputs.');
   } else if(tideDb){
-    setTideStatus(`TDM loaded: ${loadedTdmFileName || 'Solent Currents'} · ${tideDb.records.length} stream points. Use EasyTide Portsmouth to enter HW and align HW slots.`);
+    setTideStatus(`Solent Currents loaded: ${loadedTdmFileName || 'Solent Currents'} · ${tideDb.records.length} stream points. Use EasyTide Portsmouth to enter HW and align HW slots.`);
   } else {
     setTideStatus('Solent Currents mode: use EasyTide Portsmouth to enter HW time.');
   }
@@ -896,7 +896,7 @@ async function fetchPortsmouthTides(){
     return;
   }
   if(!tideDb){
-    setTideStatus('Load a Solent Currents file before fetching Portsmouth tides.', true);
+    setTideStatus('Load the Solent Currents model before fetching Portsmouth tides.', true);
     return;
   }
 
@@ -1005,7 +1005,7 @@ function applyEasyTideHwTime(){
   if(tideDb){
     setTideStatus(`Portsmouth HW set from EasyTide: ${dt.toLocaleString([], {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'short'})}. TDM HW slots can now be aligned manually.`);
   } else {
-    setTideStatus(`Portsmouth HW set from EasyTide. Load a Solent Currents file to use HW± current slots.`);
+    setTideStatus(`Portsmouth HW set from EasyTide. Load the Solent Currents model to use HW± current slots.`);
   }
 }
 
@@ -1388,7 +1388,7 @@ function updateTideStrengthUi(){
   const mode = $('currentSource')?.value || 'manual';
   if(mode === 'tdm' && tideDb){
     const rangeText = calc ? ` Portsmouth range ${calc.range.toFixed(2)} m.` : '';
-    setTideStatus(`TDM loaded: ${loadedTdmFileName || 'Solent Currents'} · ${tideDb.records.length} stream points. Tide strength ${factor.toFixed(2)}×.${rangeText}`);
+    setTideStatus(`Solent Currents loaded: ${loadedTdmFileName || 'Solent Currents'} · ${tideDb.records.length} stream points. Tide strength ${factor.toFixed(2)}×.${rangeText}`);
   }
 }
 
@@ -1756,17 +1756,31 @@ if(typeof renderMap === 'function' && !renderMap.__waypointGuardWrapped){
 
 
 // ---------------- Embedded Solent Currents startup load ----------------
-async function loadEmbeddedWinningTidesTdm(){
+async function loadEmbeddedSolentCurrentsTdm(){
   try{
-    // Do not overwrite a user-uploaded TDM if one is already loaded.
     if(tideDb?.records?.length) return;
 
-    const res = await fetch('WinningTides.tdm', {cache:'no-store'});
-    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    const candidates = ['SolentCurrents.tdm', 'WinningTides.tdm'];
+    let buffer = null;
+    let loadedName = null;
+    let lastError = null;
 
-    const buffer = await res.arrayBuffer();
-    tideDb = decodeWinningTidesTdm(buffer);
-    loadedTdmFileName = 'WinningTides.tdm';
+    for(const name of candidates){
+      try{
+        const res = await fetch(name, {cache:'no-store'});
+        if(!res.ok) throw new Error(`${name}: ${res.status} ${res.statusText}`);
+        buffer = await res.arrayBuffer();
+        loadedName = name;
+        break;
+      }catch(err){
+        lastError = err;
+      }
+    }
+
+    if(!buffer) throw lastError || new Error('Solent Currents file not found');
+
+    tideDb = decodeSolentCurrentsTdm(buffer);
+    loadedTdmFileName = loadedName;
 
     const source = $('currentSource');
     if(source) source.value = 'tdm';
@@ -1774,16 +1788,16 @@ async function loadEmbeddedWinningTidesTdm(){
     updateTideModeUi?.();
     updateTideStrengthUi?.();
 
-    setTideStatus(`Embedded Solent Currents model loaded: ${tideDb.records.length} stream points. Enter Portsmouth HW time/height from EasyTide.`);
+    setTideStatus(`Solent Currents model loaded: ${tideDb.records.length} stream points. Enter Portsmouth HW time/height from EasyTide.`);
   } catch(err){
     console.warn('Embedded Solent Currents load failed', err);
-    setTideStatus?.('Embedded Solent Currents model could not be loaded. You can still upload a .tdm file manually.', true);
+    setTideStatus?.('Solent Currents model could not be loaded. Check SolentCurrents.tdm is in the same folder as index.html.', true);
   }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
   // Delay slightly so the tide setup controls exist and earlier binders have run.
-  setTimeout(loadEmbeddedWinningTidesTdm, 150);
+  setTimeout(loadEmbeddedSolentCurrentsTdm, 150);
 });
 
 

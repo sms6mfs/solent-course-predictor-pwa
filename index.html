@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Inshore Course Predictor</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+<style>
+    .map-action-btn {
+      position: absolute;
+      z-index: 900;
+      right: 12px;
+      bottom: 12px;
+      min-height: 44px;
+      padding: 10px 14px;
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 12px;
+      background: rgba(10, 14, 20, 0.88);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+      backdrop-filter: blur(4px);
+      cursor: pointer;
+    }
+    .map-action-btn:active {
+      transform: translateY(1px);
+    }
+    #map {
+      position: relative;
+    }
+    @media (max-width: 720px) {
+      .map-action-btn {
+        right: 10px;
+        bottom: 10px;
+        min-height: 48px;
+        padding: 12px 15px;
+        font-size: 15px;
+      }
+    }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Inshore Course Predictor</h1>
+    <p>GPX marks · polar/manual targets · wind/current · tack split estimates</p>
+  </div>
+  <button id="installBtn" hidden>Install</button>
+</header>
+<nav class="app-tabs">
+  <button id="setupPageBtn" type="button" class="active-tab">Setup</button>
+  <button id="coursePageBtn" type="button" class="secondary">Course</button>
+</nav>
+<main>
+  <section class="panel controls setup-page">
+    <h2>1 · Inputs</h2>
+    <div class="grid two">
+      <label>GPX marks <input type="file" id="gpxFile" accept=".gpx,.xml" /></label>
+      <label>Polar file <input type="file" id="polarFile" accept=".csv,.txt,.pol" /></label>
+      <label>TWD °T (FROM) <input type="number" id="twd" value="240" min="0" max="359" step="1" /></label>
+      <label>True wind speed kn <input type="number" id="tws" value="10" min="0" step="0.1" /></label>
+      <label>Current set °T (TO) <input type="number" id="set" value="270" min="0" max="359" step="1" /></label>
+      <label>Current drift kn <input type="number" id="drift" value="2" min="0" step="0.1" /></label>
+      <label>Use polar <select id="usePolar"><option>Yes</option><option selected>No</option></select></label>
+      <label>Mag variation ° <input type="number" id="magVar" value="0" step="0.1" /></label>
+    </div>
+    <h3>Manual targets</h3>
+    <div class="grid three">
+      <label>Upwind TWA <input type="number" id="upTwa" value="39" /></label>
+      <label>Upwind BSP <input type="number" id="upBsp" value="6.76" step="0.01" /></label>
+      <label>Reach TWA <input type="number" id="reachTwa" value="90" min="0" max="180" step="1" /></label>
+      <label>Reach BSP <input type="number" id="reachBsp" value="8.47" step="0.01" /></label>
+      <label>Downwind TWA <input type="number" id="dnTwa" value="148" /></label>
+      <label>Downwind BSP <input type="number" id="dnBsp" value="6.4" step="0.01" /></label>
+      <label>Polar factor <input type="number" id="polarFactor" value="1" step="0.01" /></label>
+    </div>
+    <div class="setup-actions">
+      <button id="continueToCourse" type="button">Continue to course</button>
+    </div>
+  </section>
+
+  <section class="panel course-panel course-page">
+    <h2>2 · Build course</h2>
+    <div class="course-tools">
+      <select id="markSelect"></select>
+      <button id="addMark">Add mark</button>
+      <button id="clearCourse">Clear</button>
+      
+    </div>
+
+    <h3>Custom start / finish</h3>
+    <div class="custom-points">
+      <div class="custom-point-card">
+        <strong>Start</strong>
+        <div class="grid two compact">
+          <label>Lat <input type="number" id="startLat" step="0.000001" placeholder="50.7" /></label>
+          <label>Lon <input type="number" id="startLon" step="0.000001" placeholder="-1.1" /></label>
+        </div>
+        <div class="button-row">
+          <button id="pickStart" class="secondary">Pick on chart</button>
+          <button id="addCustomStart">Use as start</button>
+        </div>
+      </div>
+      <div class="custom-point-card">
+        <strong>Finish</strong>
+        <div class="grid two compact">
+          <label>Lat <input type="number" id="finishLat" step="0.000001" placeholder="50.7" /></label>
+          <label>Lon <input type="number" id="finishLon" step="0.000001" placeholder="-1.1" /></label>
+        </div>
+        <div class="button-row">
+          <button id="pickFinish" class="secondary">Pick on chart</button>
+          <button id="addCustomFinish">Use as finish</button>
+        </div>
+      </div>
+    </div>
+    <p id="pickHint" class="hint">Tip: click any mark on the chart to add it to the course. Use Pick Start/Pick Finish to set custom coordinates from the chart or from an existing mark.</p>
+
+    <ol id="courseList"></ol>
+  </section>
+
+  <section id="map" class="map wide course-page"></section>
+  <section id="currentOverlayControls" class="panel wide course-page current-overlay-controls">
+    <div class="section-head compact">
+      <div>
+        <h2>Current overlay</h2>
+        <p id="currentOverlayStatus">Solent Currents overlay not loaded yet.</p>
+      </div>
+    </div>
+    <div class="current-time-row">
+      <button id="currentBack30" type="button" class="secondary">−30 min</button>
+      <label>Current display time
+        <input type="datetime-local" id="currentOverlayTime" />
+      </label>
+      <button id="currentForward30" type="button" class="secondary">+30 min</button>
+      <button id="toggleCurrentArrows" type="button">Show currents</button>
+    </div>
+  </section>
+
+  <section class="panel wide course-page">
+    <div class="section-head">
+      <h2>3 · Prediction</h2>
+      <button id="recalc">Recalculate</button>
+      <button id="runSimulation" type="button" class="secondary">Run 1-min simulation</button>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="table-wrap">
+      <table id="legsTable">
+        <thead><tr><th>Leg</th><th>Dist</th><th>Brg °T</th><th>Mode</th><th>Target</th><th>Port</th><th>Stbd</th><th>Total</th><th>Sim Port</th><th>Sim Stbd</th><th>Sim Total</th><th>CTS Port/Stbd</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+
+
+  <section class="panel wide setup-page tide-panel">
+    <div class="section-head">
+      <div>
+        <h2>2 · Tides / current setup</h2>
+        <p>Use manual current inputs, or use Solent Currents aligned with Portsmouth tide times/heights.</p>
+      </div>
+    </div>
+
+    <div class="grid two tide-grid">
+      <label>Current source
+        <select id="currentSource">
+          <option value="manual" selected>Manual current entry</option>
+          <option value="tdm">Solent Currents</option>
+        </select>
+      </label>
+
+      
+
+      <label>Portsmouth HW time from EasyTide
+        <input type="datetime-local" id="portsmouthHwTime" />
+      </label>
+
+      <label>Portsmouth HW height m
+        <input type="number" id="portsmouthHwHeight" value="" min="0" max="6" step="0.01" placeholder="e.g. 4.8" />
+      </label>
+
+      <label>Portsmouth LW height m
+        <input type="number" id="portsmouthLwHeight" value="" min="0" max="6" step="0.01" placeholder="e.g. 1.1" />
+      </label>
+
+      <label>Tide strength factor
+        <input type="number" id="tideFactor" value="1.00" min="0.50" max="1.60" step="0.01" />
+      </label>
+
+      <label>Race start time
+        <input type="datetime-local" id="raceStartTime" />
+      </label>
+
+      <label>Time step seconds
+        <input type="number" id="simStepSec" value="60" min="15" max="300" step="15" />
+      </label>
+
+      <label>Minimum tack/gybe duration minutes
+        <input type="number" id="minTackMin" value="2" min="0" max="20" step="0.5" />
+      </label>
+
+      <label>Tack/gybe penalty seconds
+        <input type="number" id="tackPenaltySec" value="5" min="0" max="120" step="1" />
+      </label>
+    </div>
+
+    <div class="button-row tide-actions">
+      <button id="openEasyTide" type="button">Open EasyTide Portsmouth</button>
+      <button id="openKhmTides" type="button" class="secondary">Open KHM tide table</button>
+      <button id="parsePastedTides" type="button" class="secondary">Parse pasted tide text</button>
+      <button id="applyEasyTideHw" type="button" class="secondary">Use entered HW time</button>
+    </div>
+
+    <label class="wide-label">Paste Portsmouth tide text
+      <textarea id="pasteTideText" rows="4" placeholder="Paste copied EasyTide/KHM tide table text here, e.g. HW 05:42 4.7m LW 11:21 1.0m"></textarea>
+    </label>
+
+    <div id="tideStatus" class="hint tide-status">Manual current mode: use Current set/drift in Inputs.</div>
+
+    <div class="table-wrap tide-table-wrap">
+      <table id="tideTable">
+        <thead><tr><th>Reference</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Portsmouth HW</td><td id="hwDisplay">Not set</td></tr>
+          <tr><td>Portsmouth range</td><td id="rangeDisplay">Not set</td></tr>
+          <tr><td>Tide strength</td><td id="factorDisplay">1.00 × mean</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <section class="panel wide polar-panel setup-page">
+    <div class="section-head">
+      <div>
+        <h2>3 · Loaded polar</h2>
+        <p id="polarMeta">No polar loaded</p>
+      </div>
+      <div class="tab-buttons">
+        <button id="polarDiagramTab" class="secondary active-tab" type="button">Diagram</button>
+        <button id="polarTableTab" class="secondary" type="button">Table</button>
+      </div>
+    </div>
+    <div id="polarDiagramPanel" class="polar-tab-panel">
+      <canvas id="polarCanvas" width="900" height="520"></canvas>
+      <p class="hint">Classic polar view: TWA is plotted as port/starboard angle from upwind, BSP is radial distance, and each curve is one TWS row.</p>
+    </div>
+    <div id="polarTablePanel" class="polar-tab-panel" hidden>
+      <div class="table-wrap polar-table-wrap">
+        <table id="polarTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+<button id="zoomCourseBtn" type="button" class="map-action-btn">Zoom to course</button>
+</body>
+</html>

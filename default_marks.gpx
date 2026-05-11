@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<gpx version="1.1" creator="GPS Utility 5.34 - http://www.gpsu.co.uk"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd http://www.garmin.com/xmlschemas/WaypointExtension/v1 http://www8.garmin.com/xmlschemas/WaypointExtensionv1.xsd http://www.garmin.com/xmlschemas/TrackPointExtension/v1 http://www.garmin.com/xmlschemas/TrackPointExtensionv1.xsd http://www.garmin.com/xmlschemas/GpxExtensions/v3 http://www8.garmin.com/xmlschemas/GpxExtensionsv3.xsd http://www.garmin.com/xmlschemas/CreationTimeExtensions/v1 http://www.garmin.com/xmlschemas/CreationTimeExtensionsv1.xsd"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:wptx1="http://www.garmin.com/xmlschemas/WaypointExtension/v1"
+  xmlns:gpxtrx="http://www.garmin.com/xmlschemas/GpxExtensions/v3"
+  xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+  xmlns:gpxx="http://www.garmin.com/xmlschemas/GpxExtensions/v3"
+  xmlns:ctx="http://www.garmin.com/xmlschemas/CreationTimeExtension/v1">
+
+<wpt lat="50.606833" lon="-1.935000"><name>1A Peveril Ledge</name></wpt>
+<wpt lat="50.654833" lon="-1.919000"><name>1B Poole Bar No 1</name></wpt>
+<wpt lat="50.671833" lon="-1.900333"><name>1C Stoneways Marine</name></wpt>
+<wpt lat="50.684667" lon="-1.904333"><name>1D The Rig Shop</name></wpt>
+<wpt lat="50.691667" lon="-1.693333"><name>1E Ledge Buoy</name></wpt>
+<wpt lat="50.637333" lon="-1.649667"><name>1F Needles Fairway</name></wpt>
+<wpt lat="50.654833" lon="-1.625333"><name>1G South West Shingles</name></wpt>
+<wpt lat="50.660500" lon="-1.614667"><name>1H Bridge</name></wpt>
+<wpt lat="50.672833" lon="-1.600833"><name>1J Shingles Elbow</name></wpt>
+<wpt lat="50.711500" lon="-1.592000"><name>1K North Head</name></wpt>
+<wpt lat="50.662167" lon="-1.591667"><name>1L Needles Lighthouse</name></wpt>
+<wpt lat="50.691333" lon="-1.559167"><name>1M Warden</name></wpt>
+<wpt lat="50.699333" lon="-1.556833"><name>1N North East Shingles</name></wpt>
+<wpt lat="50.676333" lon="-1.920500"><name>11 East Hook</name></wpt>
+<wpt lat="50.710000" lon="-1.680000"><name>12 Mid Bay Buoy</name></wpt>
+<wpt lat="50.660167" lon="-1.920000"><name>13 Parkstone YC</name></wpt>
+<wpt lat="50.712833" lon="-1.540500"><name>2A Hill Robinson</name></wpt>
+<wpt lat="50.723000" lon="-1.525667"><name>2B Dunford Construction</name></wpt>
+<wpt lat="50.730500" lon="-1.514333"><name>2C Colten</name></wpt>
+<wpt lat="50.737333" lon="-1.498333"><name>2D Lymington Yacht Haven</name></wpt>
+<wpt lat="50.741500" lon="-1.488667"><name>2E Circle Marine Insurance</name></wpt>
+<wpt lat="50.736667" lon="-1.487000"><name>2F Berthon</name></wpt>
+<wpt lat="50.746500" lon="-1.474500"><name>2G Bridgeworks WAN Acceleration</name></wpt>
+<wpt lat="50.738333" lon="-1.469333"><name>2H Draycott Chartered Surveyors</name></wpt>
+<wpt lat="50.751833" lon="-1.455667"><name>2J Zwerver</name></wpt>
+<wpt lat="50.747167" lon="-1.434833"><name>2K Greenings Fintech</name></wpt>
+<wpt lat="50.719000" lon="-1.532500"><name>2L Royal Lymington YC</name></wpt>
+<wpt lat="50.757167" lon="-1.431500"><name>2R Powder Byrne</name></wpt>
+<wpt lat="50.718333" lon="-1.514167"><name>2T Lymington Bank</name></wpt>
+<wpt lat="50.727833" lon="-1.491667"><name>2U Tuakana Construction</name></wpt>
+<wpt lat="50.737167" lon="-1.456167"><name>2X Solent Bank</name></wpt>
+<wpt lat="50.708833" lon="-1.523833"><name>20 Sconce</name></wpt>
+<wpt lat="50.709500" lon="-1.509833"><name>21 Black Rock</name></wpt>
+<wpt lat="50.714333" lon="-1.490000"><name>22 Raymond James Charles Stanley</name></wpt>
+<wpt lat="50.714333" lon="-1.473667"><name>24 BDM CX</name></wpt>
+<wpt lat="50.719167" lon="-1.458167"><name>25 Contessa 26 Association</name></wpt>
+<wpt lat="50.731167" lon="-1.436333"><name>26 Hamstead Ledge</name></wpt>
+<wpt lat="50.716167" lon="-1.469333"><name>27 Adam Harding-Domeney</name></wpt>
+<wpt lat="50.712167" lon="-1.478167"><name>28 Harwoods</name></wpt>
+<wpt lat="50.754000" lon="-1.401500"><name>3A West Lepe</name></wpt>
+<wpt lat="50.739333" lon="-1.396667"><name>3B Newtown East</name></wpt>
+<wpt lat="50.760667" lon="-1.385333"><name>3C Basher</name></wpt>
+<wpt lat="50.741833" lon="-1.384000"><name>3D Salt Mead</name></wpt>
+<wpt lat="50.768833" lon="-1.369833"><name>3E The Boss</name></wpt>
+<wpt lat="50.745333" lon="-1.365833"><name>3F Markby</name></wpt>
+<wpt lat="50.776333" lon="-1.357667"><name>3G Cowes Week 200</name></wpt>
+<wpt lat="50.765500" lon="-1.351167"><name>3H East Lepe</name></wpt>
+<wpt lat="50.779667" lon="-1.344000"><name>3K Lepe Spit</name></wpt>
+<wpt lat="50.758500" lon="-1.343167"><name>3L Gurnard Ledge</name></wpt>
+<wpt lat="50.784500" lon="-1.331333"><name>3N MDL Marinas</name></wpt>
+<wpt lat="50.761333" lon="-1.333000"><name>3P Cowes Yacht Haven</name></wpt>
+<wpt lat="50.766167" lon="-1.324167"><name>3Q Polly&apos;s Challenge</name></wpt>
+<wpt lat="50.784333" lon="-1.323667"><name>3R North East Gurnard #</name></wpt>
+<wpt lat="50.796833" lon="-1.320833"><name>3S SCRA.ORG.UK</name></wpt>
+<wpt lat="50.768333" lon="-1.314500"><name>3T CHS</name></wpt>
+<wpt lat="50.770333" lon="-1.314000"><name>3U Gurnard</name></wpt>
+<wpt lat="50.786667" lon="-1.310833"><name>3V West Bramble #</name></wpt>
+<wpt lat="50.786667" lon="-1.309167"><name>3W Williams Shipping</name></wpt>
+<wpt lat="50.768333" lon="-1.307167"><name>3X Island Sailing Club</name></wpt>
+<wpt lat="50.790500" lon="-1.297333"><name>3Y West Knoll</name></wpt>
+<wpt lat="50.771833" lon="-1.295833"><name>3Z Trinity House Buoy</name></wpt>
+<wpt lat="50.785333" lon="-1.295333"><name>30 RORC</name></wpt>
+<wpt lat="50.783000" lon="-1.295333"><name>31 South Bramble</name></wpt>
+<wpt lat="50.773500" lon="-1.292667"><name>33 Prince Consort</name></wpt>
+<wpt lat="50.769167" lon="-1.286667"><name>34 Cowes Corinthian</name></wpt>
+<wpt lat="50.770000" lon="-1.295833"><name>39 Snowden</name></wpt>
+<wpt lat="50.817500" lon="-1.294167"><name>4A Reach #</name></wpt>
+<wpt lat="50.825833" lon="-1.293667"><name>4B Coronation</name></wpt>
+<wpt lat="50.820167" lon="-1.291000"><name>4C Fumesy</name></wpt>
+<wpt lat="50.807333" lon="-1.283833"><name>4D Calshot #</name></wpt>
+<wpt lat="50.794500" lon="-1.283333"><name>4E Andy Cassell</name></wpt>
+<wpt lat="50.786667" lon="-1.283333"><name>4F Royal Thames</name></wpt>
+<wpt lat="50.824167" lon="-1.281833"><name>4G Chieftain Training</name></wpt>
+<wpt lat="50.799333" lon="-1.280500"><name>4H East Knoll</name></wpt>
+<wpt lat="50.810500" lon="-1.276000"><name>4J hamblewinterseries.com</name></wpt>
+<wpt lat="50.769167" lon="-1.277500"><name>4K Royal London</name></wpt>
+<wpt lat="50.817167" lon="-1.274833"><name>4L Jane</name></wpt>
+<wpt lat="50.801167" lon="-1.266667"><name>4M Hill Head</name></wpt>
+<wpt lat="50.787833" lon="-1.265000"><name>4N Ben F Wood</name></wpt>
+<wpt lat="50.774667" lon="-1.263167"><name>4P West Ryde Middle</name></wpt>
+<wpt lat="50.807667" lon="-1.262000"><name>4Q John Fisher</name></wpt>
+<wpt lat="50.819667" lon="-1.261833"><name>4R Darling Buoy</name></wpt>
+<wpt lat="50.814333" lon="-1.257167"><name>4S Royal Southern</name></wpt>
+<wpt lat="50.766167" lon="-1.258500"><name>4T Norris #</name></wpt>
+<wpt lat="50.773833" lon="-1.251500"><name>4U Goodall Roofing</name></wpt>
+<wpt lat="50.802167" lon="-1.244000"><name>4V Hamble Yacht Services</name></wpt>
+<wpt lat="50.788833" lon="-1.243167"><name>4W Ancasta</name></wpt>
+<wpt lat="50.758833" lon="-1.239833"><name>4X Colette</name></wpt>
+<wpt lat="50.776833" lon="-1.238500"><name>4Y North Ryde Middle</name></wpt>
+<wpt lat="50.768833" lon="-1.236000"><name>4Z South Ryde Middle</name></wpt>
+<wpt lat="50.794333" lon="-1.227500"><name>40 Haven Knox Johnston Specialist</name></wpt>
+<wpt lat="50.787167" lon="-1.227333"><name>41 East Bramble</name></wpt>
+<wpt lat="50.758167" lon="-1.222500"><name>42 Peel Bank</name></wpt>
+<wpt lat="50.769333" lon="-1.218167"><name>43 Little Ship Club</name></wpt>
+<wpt lat="50.788500" lon="-1.201667"><name>44 Royal Yacht Squadron</name></wpt>
+<wpt lat="50.765500" lon="-1.201667"><name>45 South East Ryde Middle</name></wpt>
+<wpt lat="50.770167" lon="-1.198000"><name>46 North East Ryde Middle</name></wpt>
+<wpt lat="50.795000" lon="-1.254167"><name>47 Contessa 32 Class</name></wpt>
+<wpt lat="50.803500" lon="-1.278000"><name>48 Paul Heys</name></wpt>
+<wpt lat="50.773333" lon="-1.226333"><name>49 250th Anniversary</name></wpt>
+<wpt lat="50.750500" lon="-1.198167"><name>5A Quarr</name></wpt>
+<wpt lat="50.758167" lon="-1.186833"><name>5B Mother Bank</name></wpt>
+<wpt lat="50.776167" lon="-1.182500"><name>5C Browndown</name></wpt>
+<wpt lat="50.753000" lon="-1.160833"><name>5D Kemps Quay</name></wpt>
+<wpt lat="50.771000" lon="-1.146000"><name>5E Stokes Bay East</name></wpt>
+<wpt lat="50.755500" lon="-1.137167"><name>5F North Sturbridge</name></wpt>
+<wpt lat="50.773667" lon="-1.131667"><name>5G Baker Trayte Marine</name></wpt>
+<wpt lat="50.780333" lon="-1.122500"><name>5H Portsmouth SC</name></wpt>
+<wpt lat="50.776833" lon="-1.121500"><name>5J KB Dry Stack</name></wpt>
+<wpt lat="50.784667" lon="-1.113000"><name>5K Naomi House &amp; Jacksplace</name></wpt>
+<wpt lat="50.768500" lon="-1.108667"><name>5M Gleeds</name></wpt>
+<wpt lat="50.772667" lon="-1.101333"><name>5P www.victoryclass.org.uk</name></wpt>
+<wpt lat="50.757333" lon="-1.091000"><name>5Q Outer Spit *</name></wpt>
+<wpt lat="50.780167" lon="-1.173333"><name>50 Fairhall West @</name></wpt>
+<wpt lat="50.776667" lon="-1.164167"><name>51 SBSC Central @</name></wpt>
+<wpt lat="50.740000" lon="-1.095000"><name>6A No Man&apos;s Land Fort</name></wpt>
+<wpt lat="50.750167" lon="-1.072333"><name>6B Horse Sand Fort</name></wpt>
+<wpt lat="50.731167" lon="-1.066500"><name>6C Warner</name></wpt>
+<wpt lat="50.737667" lon="-1.064667"><name>6D Horse Elbow</name></wpt>
+<wpt lat="50.669333" lon="-1.060833"><name>6E West Princessa</name></wpt>
+<wpt lat="50.685833" lon="-1.046833"><name>6F Bembridge Ledge Buoy</name></wpt>
+<wpt lat="50.722667" lon="-1.040167"><name>6G St Helens Buoy</name></wpt>
+<wpt lat="50.728167" lon="-1.031333"><name>6H Dean Elbow</name></wpt>
+<wpt lat="50.714333" lon="-1.013333"><name>6J Nab East</name></wpt>
+<wpt lat="50.720500" lon="-1.003833"><name>6K Horse Tail</name></wpt>
+<wpt lat="50.751667" lon="-1.001667"><name>6L Winner</name></wpt>
+<wpt lat="50.710500" lon="-0.991500"><name>6M Nab End</name></wpt>
+<wpt lat="50.716500" lon="-0.986167"><name>6N Dean Tail</name></wpt>
+<wpt lat="50.697333" lon="-0.974833"><name>6P New Grounds</name></wpt>
+<wpt lat="50.668000" lon="-0.952500"><name>6R Nab Tower</name></wpt>
+<wpt lat="50.640500" lon="-0.961667"><name>6S Outer Nab No 2</name></wpt>
+<wpt lat="50.884500" lon="-1.402667"><name>7A Gymp</name></wpt>
+<wpt lat="50.880500" lon="-1.396833"><name>7B Hythe Knock</name></wpt>
+<wpt lat="50.883333" lon="-1.390667"><name>7C No 1 Swinging</name></wpt>
+<wpt lat="50.878500" lon="-1.387667"><name>7D Weston Shelf</name></wpt>
+<wpt lat="50.875833" lon="-1.381667"><name>7H Moorhead</name></wpt>
+<wpt lat="50.870000" lon="-1.380833"><name>7J Deans Elbow</name></wpt>
+<wpt lat="50.871833" lon="-1.378833"><name>7K NW Netley</name></wpt>
+<wpt lat="50.877667" lon="-1.373667"><name>7L Hovercraft 4</name></wpt>
+<wpt lat="50.862667" lon="-1.371333"><name>7N SWSA/HSC</name></wpt>
+<wpt lat="50.873833" lon="-1.366833"><name>7P Hovercraft 3</name></wpt>
+<wpt lat="50.867167" lon="-1.363500"><name>7Q Netley</name></wpt>
+<wpt lat="50.859833" lon="-1.360833"><name>7R Lains Lake</name></wpt>
+<wpt lat="50.856667" lon="-1.359833"><name>7S Deans Lake</name></wpt>
+<wpt lat="50.870167" lon="-1.359667"><name>7T Hovercraft 2</name></wpt>
+<wpt lat="50.861333" lon="-1.358667"><name>7U Hound</name></wpt>
+<wpt lat="50.866500" lon="-1.352667"><name>7V Hovercraft 1</name></wpt>
+<wpt lat="50.858833" lon="-1.347000"><name>7W After Barn</name></wpt>
+<wpt lat="50.850333" lon="-1.342333"><name>7Y Cadland</name></wpt>
+<wpt lat="50.851833" lon="-1.339667"><name>7Z Greenland</name></wpt>
+<wpt lat="50.843500" lon="-1.320667"><name>70 Warsash Sailing Club</name></wpt>
+<wpt lat="50.835833" lon="-1.311000"><name>72 Hamble Point</name></wpt>
+<wpt lat="50.830000" lon="-1.301167"><name>73 Bald Head</name></wpt>
+<wpt lat="50.827667" lon="-1.293167"><name>74 William</name></wpt>
+<wpt lat="50.876500" lon="-1.390833"><name>76 Test</name></wpt>
+<wpt lat="50.840333" lon="-1.319833"><name>77 Fawley Deep</name></wpt>
+<wpt lat="50.825333" lon="-1.305000"><name>78 Hook #</name></wpt>
+
+</gpx>

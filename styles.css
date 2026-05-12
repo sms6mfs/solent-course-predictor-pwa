@@ -332,3 +332,61 @@ body.show-course .panel{
     grid-template-columns:1fr;
   }
 }
+
+
+/* Manual current fields hidden when Solent Currents selected */
+.manual-current-field{
+  transition:opacity .15s ease;
+}
+
+
+/* Failed simulation leg display */
+.failed-leg-row{
+  outline:2px solid #ff9f1a;
+  background:rgba(255,159,26,0.08);
+}
+.failed-leg-label{
+  color:#ffb347;
+  font-size:12px;
+  font-weight:800;
+}
+
+
+/* Simplified page layout */
+.inputs-grid,
+.tide-grid{
+  gap:14px;
+}
+.manual-current-details{
+  margin-top:14px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:10px 12px;
+  background:rgba(255,255,255,0.025);
+}
+.manual-current-details summary{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  font-weight:800;
+  cursor:pointer;
+}
+.picked-point-card{
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:12px;
+  background:rgba(255,255,255,0.025);
+}
+.picked-point-actions{
+  grid-template-columns:repeat(4, minmax(0,1fr));
+}
+@media (max-width:760px){
+  .picked-point-actions{
+    grid-template-columns:1fr 1fr;
+  }
+}
+@media (max-width:420px){
+  .picked-point-actions{
+    grid-template-columns:1fr;
+  }
+}

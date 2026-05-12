@@ -56,16 +56,30 @@
 <main>
   <section class="panel controls setup-page">
     <h2>1 · Inputs</h2>
-    <div class="grid two">
-      <label>GPX marks <input type="file" id="gpxFile" accept=".gpx,.xml" /></label>
-      <label>Polar file <input type="file" id="polarFile" accept=".csv,.txt,.pol" /></label>
-      <label>TWD °T (FROM) <input type="number" id="twd" value="240" min="0" max="359" step="1" /></label>
-      <label>True wind speed kn <input type="number" id="tws" value="10" min="0" step="0.1" /></label>
-      <label>Current set °T (TO) <input type="number" id="set" value="270" min="0" max="359" step="1" /></label>
-      <label>Current drift kn <input type="number" id="drift" value="2" min="0" step="0.1" /></label>
-      <label>Use polar <select id="usePolar"><option selected>Yes</option><option>No</option></select></label>
-      <label>Mag variation ° <input type="number" id="magVar" value="0" step="0.1" /></label>
+    <div class="grid two inputs-grid">
+      <label>GPX Marks
+        <input type="file" id="gpxFile" accept=".gpx,.xml" />
+      </label>
+      <label>Polar File
+        <input type="file" id="polarFile" accept=".csv,.txt,.pol" />
+      </label>
+      <label>GWD degT (FROM)
+        <input type="number" id="twd" value="240" min="0" max="359" step="1" />
+      </label>
+      <label>GWS kn
+        <input type="number" id="tws" value="10" min="0" step="0.1" />
+      </label>
+      <label>Use Polar
+        <select id="usePolar"><option selected>Yes</option><option>No</option></select>
+      </label>
+      <label>Use Current Model
+        <select id="useCurrentModel"><option selected>Yes</option><option>No</option></select>
+      </label>
+      <label>Mag Variation
+        <input type="number" id="magVar" value="0" step="0.1" />
+      </label>
     </div>
+
     <details id="manualTargets" class="manual-targets">
       <summary>Manual targets</summary>
       <div class="grid three manual-target-grid">
@@ -77,55 +91,43 @@
         <label>Downwind BSP <input type="number" id="dnBsp" value="6.4" step="0.01" /></label>
       </div>
     </details>
+
     <div class="setup-actions">
       <button id="continueToCourse" type="button">Continue to course</button>
     </div>
   </section>
 
-  <section class="panel course-panel course-page">
-    <h2>2 · Build course</h2>
+<section class="panel course-panel course-page">
+    <h2>4 · Build Course</h2>
     <div class="course-tools">
       <select id="markSelect"></select>
       <button id="addMark">Add mark</button>
       <button id="clearCourse">Clear</button>
-      
     </div>
 
-    <h3>Custom start / finish</h3>
-    <div class="custom-points">
-      <div class="custom-point-card">
-        <strong>Start</strong>
-        <div class="grid two compact">
-          <label>Lat <input type="number" id="startLat" step="0.000001" placeholder="50.7" /></label>
-          <label>Lon <input type="number" id="startLon" step="0.000001" placeholder="-1.1" /></label>
-        </div>
-        <div class="button-row">
-          <button id="pickStart" class="secondary">Pick on chart</button>
-          <button id="addCustomStart">Use as start</button>
-        </div>
+    <h3>Picked point</h3>
+    <div class="picked-point-card">
+      <div class="grid two compact">
+        <label>Lat <input type="number" id="pickedLat" step="0.000001" placeholder="50.7" /></label>
+        <label>Lon <input type="number" id="pickedLon" step="0.000001" placeholder="-1.1" /></label>
       </div>
-      <div class="custom-point-card">
-        <strong>Finish</strong>
-        <div class="grid two compact">
-          <label>Lat <input type="number" id="finishLat" step="0.000001" placeholder="50.7" /></label>
-          <label>Lon <input type="number" id="finishLon" step="0.000001" placeholder="-1.1" /></label>
-        </div>
-        <div class="button-row">
-          <button id="pickFinish" class="secondary">Pick on chart</button>
-          <button id="addCustomFinish">Use as finish</button>
-        </div>
+      <div class="button-row picked-point-actions">
+        <button id="pickPoint" class="secondary" type="button">Pick on chart</button>
+        <button id="usePickedStart" type="button">Use as Start</button>
+        <button id="usePickedFinish" type="button">Use as Finish</button>
+        <button id="insertPickedMark" type="button">Insert as Mark</button>
       </div>
     </div>
-    <p id="pickHint" class="hint">Tip: click any mark on the chart to add it to the course. Use Pick Start/Pick Finish to set custom coordinates from the chart or from an existing mark.</p>
+    <p id="pickHint" class="hint">Tip: click any mark on the chart to add it to the course, or use Pick on Chart to capture a custom point.</p>
 
     <ol id="courseList"></ol>
   </section>
 
-  <section id="map" class="map wide course-page"></section>
+<section id="map" class="map wide course-page"></section>
   <section id="phoneGpsControls" class="panel wide course-page phone-gps-controls">
     <div class="section-head compact">
       <div>
-        <h2>Phone GPS</h2>
+        <h2>6 · Phone GPS</h2>
         <p id="phoneGpsStatus">GPS not running. Requires HTTPS and location permission.</p>
       </div>
     </div>
@@ -140,7 +142,7 @@
   <section id="currentOverlayControls" class="panel wide course-page current-overlay-controls">
     <div class="section-head compact">
       <div>
-        <h2>Current overlay</h2>
+        <h2>7 · Current Overlay</h2>
         <p id="currentOverlayStatus">Solent Currents overlay not loaded yet.</p>
       </div>
     </div>
@@ -156,9 +158,9 @@
 
   <section class="panel wide course-page">
     <div class="section-head">
-      <h2>3 · Prediction</h2>
+      <h2>8 · Prediction Table</h2>
       <button id="recalc">Recalculate</button>
-      <button id="runSimulation" type="button" class="secondary">Run 1-min simulation</button>
+      <button id="runSimulation" type="button" class="secondary">Run Simulation</button>
     </div>
     <div class="summary" id="summary"></div>
     <div class="table-wrap">
@@ -174,35 +176,30 @@
   <section class="panel wide setup-page tide-panel">
     <div class="section-head">
       <div>
-        <h2>2 · Tides / current setup</h2>
+        <h2>2 · Tide / Current Setup</h2>
         <p>Use manual current inputs, or use Solent Currents aligned with Portsmouth tide times/heights.</p>
       </div>
     </div>
 
     <div class="grid two tide-grid">
-      <label>Current source
-        <select id="currentSource">
-          <option value="manual" selected>Manual current entry</option>
-          <option value="tdm">Solent Currents</option>
-        </select>
-      </label>
-
-      
-
       <label>Portsmouth HW time from EasyTide
         <input type="datetime-local" id="portsmouthHwTime" />
       </label>
 
-      <label>Portsmouth HW height m
+      <label>Portsmouth HW Height m
         <input type="number" id="portsmouthHwHeight" value="" min="0" max="6" step="0.01" placeholder="e.g. 4.8" />
       </label>
 
-      <label>Portsmouth LW height m
+      <label>Portsmouth LW Height m
         <input type="number" id="portsmouthLwHeight" value="" min="0" max="6" step="0.01" placeholder="e.g. 1.1" />
       </label>
 
-      <label>Tide strength factor
+      <label>Tide Strength Factor
         <input type="number" id="tideFactor" value="1.00" min="0.50" max="1.60" step="0.01" />
+      </label>
+
+      <label>Scale Current Rate %
+        <input type="number" id="currentRateScalePct" value="100" min="50" max="150" step="1" />
       </label>
 
       <label>Race start time
@@ -222,14 +219,25 @@
       </label>
     </div>
 
+    <details id="manualCurrentDetails" class="manual-current-details">
+      <summary>Manual Current</summary>
+      <div class="grid two compact">
+        <label>Current set °T (TO)
+          <input type="number" id="set" value="270" min="0" max="359" step="1" />
+        </label>
+        <label>Current drift kn
+          <input type="number" id="drift" value="2" min="0" step="0.1" />
+        </label>
+      </div>
+    </details>
+
     <div class="button-row tide-actions">
       <button id="openEasyTide" type="button">Open EasyTide Portsmouth</button>
-      <button id="openKhmTides" type="button" class="secondary">Open KHM tide table</button>
-      <button id="parsePastedTides" type="button" class="secondary">Parse pasted tide text</button>
-      <button id="applyEasyTideHw" type="button" class="secondary">Use entered HW time</button>
+      <button id="parsePastedTides" type="button" class="secondary">Parse Pasted Data</button>
+      <button id="applyEasyTideHw" type="button" class="secondary">Use Entered HW Time</button>
     </div>
 
-    <label class="wide-label">Paste Portsmouth tide text
+    <label class="wide-label">Parse Data
       <textarea id="pasteTideText" rows="4" placeholder="Paste copied EasyTide/KHM tide table text here, e.g. HW 05:42 4.7m LW 11:21 1.0m"></textarea>
     </label>
 
@@ -251,7 +259,7 @@
   <section class="panel wide polar-panel setup-page">
     <div class="section-head">
       <div>
-        <h2>3 · Loaded polar</h2>
+        <h2>3 · Loaded Polar</h2>
         <p id="polarMeta">No polar loaded</p>
       </div>
       <div class="polar-controls">

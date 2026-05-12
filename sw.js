@@ -1,4 +1,4 @@
-const CACHE='solent-course-predictor-phone-gps';
+const CACHE='solent-course-predictor-reach-curved-aimpoint';
 const ASSETS=[
   './',
   './index.html',
@@ -7,7 +7,8 @@ const ASSETS=[
   './data.js',
   './manifest.webmanifest',
   './default_marks.gpx',
-  './SolentCurrents.tdm'
+  './SolentCurrents.tdm',
+  './solent_land_mask.geojson'
 ];
 
 self.addEventListener('install', event => {
